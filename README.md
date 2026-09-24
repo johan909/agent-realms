@@ -1,6 +1,6 @@
 # Agent Realms
 
-A Minecraft-style block world where AI agents live as villagers in the town you build.
+A block-building world where AI agents live as little worker bots in the town you build.
 Everyone owns a town. You can walk into a neighbour's town and watch, but you only
 see *that* their villagers are busy, never *what* they are working on.
 

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Realms</title>
-<meta name="description" content="A Minecraft-style block world: build your town, and watch AI villagers work in it next to a neighbour town whose work stays private.">
+<meta name="description" content="A block-building world: build your town, and watch AI villagers work in it next to a neighbour town whose work stays private.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=VT323&family=Silkscreen&display=swap" rel="stylesheet">
 <style>
@@ -416,21 +416,27 @@ let visitor = false;
 function box(w, h, d, color) { return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color })); }
 function makeVillager(name, owner, i, sx, sz) {
   const g = new THREE.Group();
-  const robe = ROBES[i % ROBES.length];
-  const legs = [box(.22, .6, .22, 0x3a2a1e), box(.22, .6, .22, 0x3a2a1e)];
-  legs[0].position.set(-.12, .3, 0); legs[1].position.set(.12, .3, 0);
-  const body = box(.5, .75, .32, robe); body.position.y = .98;
-  const head = box(.46, .5, .46, 0xc99a74); head.position.y = 1.6;
-  const nose = box(.1, .18, .1, 0xb07e5a); nose.position.set(0, 1.52, .27);
-  const brow = box(.46, .06, .02, 0x3a2a1e); brow.position.set(0, 1.7, .235);
-  const arms = box(.62, .2, .24, robe); arms.position.set(0, 1.08, .2);
-  const armPivot = new THREE.Group(); armPivot.position.set(0, 1.2, 0); arms.position.set(0, -.12, .2); armPivot.add(arms);
-  g.add(...legs, body, head, nose, brow, armPivot);
+  // villagers are little worker bots: a screen face and an antenna light that shows their status
+  const shell = ROBES[i % ROBES.length];
+  const legs = [box(.18, .55, .18, 0x44474f), box(.18, .55, .18, 0x44474f)];
+  legs[0].position.set(-.12, .28, 0); legs[1].position.set(.12, .28, 0);
+  const body = box(.52, .62, .36, shell); body.position.y = .88;
+  const belly = box(.3, .2, .02, 0xe8e2d0); belly.position.set(0, .86, .19);
+  const head = box(.56, .44, .44, 0xd9d6cc); head.position.y = 1.44;
+  const screen = box(.44, .24, .02, 0x14202a); screen.position.set(0, 1.45, .23);
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x6ff3ff });
+  const eyes = [new THREE.Mesh(new THREE.BoxGeometry(.07, .09, .01), eyeMat), new THREE.Mesh(new THREE.BoxGeometry(.07, .09, .01), eyeMat)];
+  eyes[0].position.set(-.1, 1.46, .245); eyes[1].position.set(.1, 1.46, .245);
+  const stalk = box(.04, .22, .04, 0x44474f); stalk.position.y = 1.77;
+  const bulb = new THREE.Mesh(new THREE.BoxGeometry(.12, .12, .12), new THREE.MeshBasicMaterial({ color: 0x888888 })); bulb.position.y = 1.92;
+  const armPivot = new THREE.Group(); armPivot.position.set(0, 1.12, 0);
+  for (const sx of [-.33, .33]) { const a = box(.14, .5, .14, shell); a.position.set(sx, -.22, 0); armPivot.add(a); }
+  g.add(...legs, body, belly, head, screen, ...eyes, stalk, bulb, armPivot);
   g.traverse(o => { if (o.isMesh) o.userData.villager = true; });
   scene.add(g);
   const el = document.createElement('div'); el.className = 'tag';
-  const label = new CSS2DObject(el); label.position.set(0, 2.15, 0); g.add(label);
-  const v = { name, owner, g, legs, armPivot, el, label, tx: sx, tz: sz, x: sx + .5, z: sz + .5, y: surf[sx + W * sz],
+  const label = new CSS2DObject(el); label.position.set(0, 2.2, 0); g.add(label);
+  const v = { name, owner, g, legs, armPivot, bulb, el, label, tx: sx, tz: sz, x: sx + .5, z: sz + .5, y: surf[sx + W * sz],
     path: [], state: 'idle', timer: 1 + i * .7, target: null, spot: null, task: null, last: null, r: rng(i * 31 + (owner === 'me' ? 1 : 99)), phase: Math.random() * 6 };
   g.userData.v = v;
   villagers.push(v);
@@ -508,7 +514,8 @@ function updateVillager(v, dt, t) {
   v.g.position.set(v.x, v.y, v.z);
   const sw = moving ? Math.sin(t * 9 + v.phase) * .6 : 0;
   v.legs[0].rotation.x = sw; v.legs[1].rotation.x = -sw;
-  v.armPivot.rotation.x = v.state === 'working' && !moving ? -.5 + Math.sin(t * 7 + v.phase) * .5 : 0;
+  v.armPivot.rotation.x = v.state === 'working' && !moving ? -.9 + Math.sin(t * 7 + v.phase) * .5 : 0;
+  v.bulb.material.color.setHex(v.state === 'working' ? 0x5dff7a : v.state === 'walking' ? 0xffc24a : 0x888888);
 }
 
 function updateLabel(v, t, camPos) {
@@ -520,7 +527,7 @@ function updateLabel(v, t, camPos) {
   } else if (v.state === 'walking' && !hidden) { text = `${v.name} → ${TYPES[v.target.type].name}`; cls += ' walk'; }
   else if (!hidden) text = v.name;
   // neighbours at one workplace stand side by side, so stagger their labels
-  v.label.position.y = 2.15 + (v.state === 'working' ? (v.spotIdx || 0) * .42 : 0);
+  v.label.position.y = 2.2 + (v.state === 'working' ? (v.spotIdx || 0) * .42 : 0);
   const far = camPos.distanceTo(v.g.position) > 34;
   if (far) text = '';
   if (v._t !== text) { v.el.textContent = text; v._t = text; v.el.style.display = text ? '' : 'none'; }
