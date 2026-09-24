@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Realms</title>
+<meta name="description" content="A pixel town where AI agent villagers walk between buildings doing tasks.">
+<style>
+  :root {
+    --bg: #f4f1ea; --panel: #ffffff; --ink: #1f2328; --muted: #6a6f76;
+    --line: #d9d4c7; --accent: #3f7d3a; --accent-ink: #ffffff; --chip: #ece7da;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181c; --panel: #202329; --ink: #e8e6e1; --muted: #9aa0a8;
+      --line: #33373f; --accent: #6fbf63; --accent-ink: #10130f; --chip: #2a2e35;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181c; --panel: #202329; --ink: #e8e6e1; --muted: #9aa0a8;
+    --line: #33373f; --accent: #6fbf63; --accent-ink: #10130f; --chip: #2a2e35;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header { padding: 16px 16px 8px; max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+  header p { margin: 0; color: var(--muted); }
+  main { max-width: 1180px; margin: 0 auto; padding: 0 16px 24px; display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; }
+  @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
+  .stage { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; align-items: center; }
+  .tool {
+    border: 1px solid var(--line); background: var(--chip); color: var(--ink);
+    padding: 6px 10px; border-radius: 7px; cursor: pointer; font: inherit; display: inline-flex; gap: 6px; align-items: center;
+  }
+  .tool[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .spacer { flex: 1; }
+  .toggle { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; user-select: none; }
+  .toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
+  canvas { width: 100%; height: auto; display: block; image-rendering: pixelated; border-radius: 6px; cursor: crosshair; touch-action: manipulation; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  aside { display: flex; flex-direction: column; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 8px; }
+  .agent { display: flex; gap: 10px; align-items: flex-start; padding: 6px; border-radius: 7px; cursor: pointer; }
+  .agent:hover, .agent.sel { background: var(--chip); }
+  .dot { width: 14px; height: 14px; border-radius: 4px; flex: none; margin-top: 3px; }
+  .agent b { display: block; }
+  .agent span { color: var(--muted); font-size: 12px; }
+  #log { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; font-size: 12px; }
+  #log li { padding: 4px 0; border-bottom: 1px dashed var(--line); color: var(--muted); }
+  #log li b { color: var(--ink); font-weight: 600; }
+  .visitor-note { display: none; font-size: 12px; color: var(--muted); }
+  body.visitor .visitor-note { display: block; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Agent Realms</h1>
+  <p>Your town. Your villagers. Their work stays private.</p>
+</header>
+<main>
+  <section class="stage">
+    <div class="toolbar" id="toolbar"></div>
+    <canvas id="world" width="768" height="512" aria-label="Town map"></canvas>
+    <div class="hint">Pick a building and click an empty spot to place it. Choose Remove to clear a tile. Click a villager to follow it.</div>
+  </section>
+  <aside>
+    <div class="card">
+      <h2>Villagers</h2>
+      <div id="agents"></div>
+      <p class="visitor-note">Visitor view: you can see who is busy, but not what they are working on.</p>
+    </div>
+    <div class="card">
+      <h2>Activity</h2>
+      <ul id="log"></ul>
+    </div>
+  </aside>
+</main>
+<script>
+(() => {
+  const T = 32, COLS = 24, ROWS = 16;
+  const canvas = document.getElementById('world');
+  const ctx = canvas.getContext('2d');
+
+  const TYPES = {
+    library: { name: 'Library', color: '#7a5bb5', roof: '#4e3585', tasks: ['Researching competitors', 'Reading API docs', 'Summarising a paper', 'Collecting sources'] },
+    forge:   { name: 'Forge', color: '#b8573a', roof: '#6e2f1e', tasks: ['Fixing login bug', 'Writing unit tests', 'Refactoring parser', 'Reviewing a pull request'] },
+    post:    { name: 'Post Office', color: '#3a78b8', roof: '#214d7a', tasks: ['Drafting client email', 'Sorting the inbox', 'Sending weekly report', 'Scheduling a meeting'] },
+    market:  { name: 'Market', color: '#c9a227', roof: '#8a6d12', tasks: ['Updating price list', 'Qualifying new leads', 'Comparing suppliers', 'Preparing an invoice'] },
+  };
+  const TOOLS = [
+    ...Object.entries(TYPES).map(([k, v]) => ({ id: k, label: v.name, color: v.color })),
+    { id: 'tree', label: 'Tree', color: '#2f6b2a' },
+    { id: 'erase', label: 'Remove', color: '#888' },
+  ];
+
+  // ---- state ----
+  let tool = 'library';
+  let visitor = false;
+  let selected = null;
+  let buildings = [];   // {type, x, y} occupying 2x2, door at (x, y+2)
+  let trees = new Set(); // "x,y"
+  const grassNoise = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => Math.random()));
+
+  const DEFAULT_TOWN = {
+    buildings: [
+      { type: 'library', x: 3, y: 2 }, { type: 'forge', x: 17, y: 3 },
+      { type: 'post', x: 5, y: 10 }, { type: 'market', x: 15, y: 10 },
+    ],
+    trees: ['1,1', '10,1', '11,2', '21,1', '22,13', '1,14', '11,13', '20,8', '9,7'],
+  };
+
+  function load() {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem('agent-realms-town')); } catch (e) {}
+    if (!data || !Array.isArray(data.buildings)) data = DEFAULT_TOWN;
+    buildings = data.buildings.map(b => ({ ...b }));
+    trees = new Set(data.trees);
+  }
+  function save() {
+    try { localStorage.setItem('agent-realms-town', JSON.stringify({ buildings, trees: [...trees] })); } catch (e) {}
+  }
+
+  // ---- grid helpers ----
+  function buildingAt(x, y) { return buildings.find(b => x >= b.x && x < b.x + 2 && y >= b.y && y < b.y + 2); }
+  function blocked(x, y) {
+    if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return true;
+    return !!buildingAt(x, y) || trees.has(x + ',' + y);
+  }
+  function door(b) { return { x: b.x, y: b.y + 2 }; }
+
+  function findPath(sx, sy, tx, ty) {
+    if (blocked(tx, ty)) return null;
+    const key = (x, y) => y * COLS + x;
+    const prev = new Map([[key(sx, sy), null]]);
+    const q = [[sx, sy]];
+    while (q.length) {
+      const [x, y] = q.shift();
+      if (x === tx && y === ty) {
+        const path = []; let k = key(x, y);
+        while (k !== null) { path.unshift({ x: k % COLS, y: Math.floor(k / COLS) }); k = prev.get(k); }
+        return path.slice(1);
+      }
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy, nk = key(nx, ny);
+        if (!prev.has(nk) && !blocked(nx, ny)) { prev.set(nk, key(x, y)); q.push([nx, ny]); }
+      }
+    }
+    return null;
+  }
+
+  // ---- agents ----
+  const agents = [
+    { name: 'Ada',   color: '#e0605a', skin: '#f2c9a0' },
+    { name: 'Bram',  color: '#4aa3a0', skin: '#c68c5e' },
+    { name: 'Cleo',  color: '#e0a340', skin: '#f5d6b4' },
+    { name: 'Dev',   color: '#8a6fd1', skin: '#8d5a3b' },
+  ].map((a, i) => ({ ...a, x: 11 + i, y: 8, px: (11 + i) * T, py: 8 * T, path: [], state: 'idle', task: null, target: null, timer: 1 + i, bob: Math.random() * 6 }));
+
+  function freeSpawn(a) {
+    if (!blocked(a.x, a.y)) return;
+    for (let r = 1; r < 30; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (!blocked(a.x + dx, a.y + dy)) { a.x += dx; a.y += dy; a.px = a.x * T; a.py = a.y * T; a.path = []; return; }
+    }
+  }
+
+  function pickJob(a) {
+    // each building has two work spots in front of it; spread villagers out
+    const claimed = new Set(agents.filter(o => o !== a && o.spot).map(o => o.spot.x + ',' + o.spot.y));
+    const load = b => agents.filter(o => o !== a && o.target === b).length;
+    const pool = buildings.filter(b => b !== a.lastBuilding).sort(() => Math.random() - .5).sort((p, q) => load(p) - load(q));
+    if (!pool.length) pool.push(...buildings);
+    a.spot = null;
+    for (const b of pool) {
+      const spots = [0, 1].map(i => ({ x: b.x + i, y: b.y + 2, i })).filter(sp => !claimed.has(sp.x + ',' + sp.y));
+      for (const sp of spots) {
+        const path = findPath(a.x, a.y, sp.x, sp.y);
+        if (!path) continue;
+        const tasks = TYPES[b.type].tasks;
+        a.target = b; a.path = path; a.state = 'walking'; a.spot = sp;
+        a.task = tasks[Math.floor(Math.random() * tasks.length)];
+        return;
+      }
+    }
+    // nothing reachable: wander
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => !blocked(a.x + dx, a.y + dy));
+    if (dirs.length) { const [dx, dy] = dirs[Math.floor(Math.random() * dirs.length)]; a.path = [{ x: a.x + dx, y: a.y + dy }]; }
+    a.state = 'idle'; a.task = null; a.target = null; a.timer = 1.5;
+  }
+
+  const SPEED = 2.6; // tiles per second
+  function updateAgent(a, dt) {
+    a.bob += dt * 8;
+    if (a.path.length) {
+      const n = a.path[0];
+      if (blocked(n.x, n.y)) { a.path = []; a.state = 'idle'; a.timer = 0.2; return; }
+      const tx = n.x * T, ty = n.y * T;
+      const dx = tx - a.px, dy = ty - a.py, dist = Math.hypot(dx, dy), step = SPEED * T * dt;
+      if (dist <= step) { a.px = tx; a.py = ty; a.x = n.x; a.y = n.y; a.path.shift(); }
+      else { a.px += dx / dist * step; a.py += dy / dist * step; a.facing = dx < 0 ? -1 : dx > 0 ? 1 : a.facing; }
+      if (!a.path.length && a.state === 'walking') {
+        if (!buildings.includes(a.target)) { a.state = 'idle'; a.timer = 0.3; return; }
+        a.state = 'working'; a.timer = 5 + Math.random() * 5;
+        log(a, `started <i>${a.task}</i> at the ${TYPES[a.target.type].name}`);
+      }
+      return;
+    }
+    a.timer -= dt;
+    if (a.state === 'working') {
+      if (!buildings.includes(a.target)) { a.state = 'idle'; a.timer = 0.3; a.task = null; }
+      else if (a.timer <= 0) {
+        log(a, `finished <i>${a.task}</i>`);
+        a.lastBuilding = a.target; a.state = 'idle'; a.task = null; a.spot = null; a.timer = 0.8;
+      }
+    } else if (a.timer <= 0) pickJob(a);
+  }
+
+  // ---- particles (forge smoke, library glow) ----
+  const particles = [];
+  function emit(b) {
+    if (b.type !== 'forge') return;
+    if (Math.random() < 0.25) particles.push({ x: b.x * T + 46, y: b.y * T + 4, vx: (Math.random() - .5) * 8, vy: -18 - Math.random() * 10, life: 2 });
+  }
+
+  // ---- drawing ----
+  function drawGround() {
+    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+      const n = grassNoise[y][x];
+      ctx.fillStyle = n < .33 ? '#6cab4f' : n < .66 ? '#74b356' : '#68a64c';
+      ctx.fillRect(x * T, y * T, T, T);
+      if (n > .9) { ctx.fillStyle = '#86c466'; ctx.fillRect(x * T + 8, y * T + 12, 3, 3); ctx.fillRect(x * T + 20, y * T + 22, 3, 3); }
+      if (n < .04) { ctx.fillStyle = '#f1e36b'; ctx.fillRect(x * T + 14, y * T + 14, 4, 4); }
+    }
+    // dirt at doors
+    for (const b of buildings) { const d = door(b); ctx.fillStyle = '#b59566'; ctx.fillRect(d.x * T + 2, d.y * T, T * 2 - 4, T - 6); }
+  }
+
+  function drawTree(x, y) {
+    const px = x * T, py = y * T;
+    ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(px + 6, py + 24, 22, 6);
+    ctx.fillStyle = '#6b4a2b'; ctx.fillRect(px + 13, py + 18, 6, 10);
+    ctx.fillStyle = '#2f6b2a'; ctx.fillRect(px + 4, py + 4, 24, 16);
+    ctx.fillStyle = '#3d8436'; ctx.fillRect(px + 8, py + 2, 16, 8);
+    ctx.fillStyle = '#4c9a43'; ctx.fillRect(px + 8, py + 6, 6, 4);
+  }
+
+  function drawBuilding(b, busy) {
+    const t = TYPES[b.type], px = b.x * T, py = b.y * T;
+    ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(px + 4, py + 56, 60, 8);
+    // walls
+    ctx.fillStyle = t.color; ctx.fillRect(px + 4, py + 22, 56, 38);
+    ctx.fillStyle = 'rgba(0,0,0,.12)'; for (let i = 0; i < 4; i++) ctx.fillRect(px + 4, py + 30 + i * 8, 56, 1);
+    // roof
+    ctx.fillStyle = t.roof;
+    for (let i = 0; i < 6; i++) ctx.fillRect(px + i * 3, py + 20 - i * 3, 64 - i * 6, 4);
+    // door
+    ctx.fillStyle = '#3b2716'; ctx.fillRect(px + 12, py + 42, 12, 18);
+    ctx.fillStyle = '#e0c070'; ctx.fillRect(px + 21, py + 51, 2, 2);
+    // window, lit when someone works inside
+    ctx.fillStyle = busy ? '#ffe58a' : '#2b3440'; ctx.fillRect(px + 36, py + 34, 16, 12);
+    ctx.fillStyle = t.roof; ctx.fillRect(px + 43, py + 34, 2, 12); ctx.fillRect(px + 36, py + 39, 16, 2);
+    // type marks
+    if (b.type === 'forge') { ctx.fillStyle = '#4a4a4a'; ctx.fillRect(px + 42, py + 0, 10, 14); }
+    if (b.type === 'library') { ctx.fillStyle = '#f1ead2'; ctx.fillRect(px + 27, py + 8, 10, 6); ctx.fillStyle = t.roof; ctx.fillRect(px + 31, py + 8, 2, 6); }
+    if (b.type === 'post') { ctx.fillStyle = '#f5f0e0'; ctx.fillRect(px + 26, py + 8, 12, 7); ctx.fillStyle = '#c0392b'; ctx.fillRect(px + 30, py + 10, 4, 3); }
+    if (b.type === 'market') { for (let i = 0; i < 7; i++) { ctx.fillStyle = i % 2 ? '#ffffff' : '#d64541'; ctx.fillRect(px + 4 + i * 8, py + 22, 8, 6); } }
+  }
+
+  function drawAgent(a) {
+    const px = Math.round(a.px), bobY = a.path.length ? Math.round(Math.sin(a.bob) * 1.5) : 0, py = Math.round(a.py) + bobY;
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.fillRect(px + 9, Math.round(a.py) + 27, 14, 4);
+    ctx.fillStyle = '#2d2d38'; ctx.fillRect(px + 11, py + 22, 4, 6); ctx.fillRect(px + 17, py + 22, 4, 6);
+    ctx.fillStyle = a.color; ctx.fillRect(px + 9, py + 13, 14, 10);
+    ctx.fillStyle = a.skin; ctx.fillRect(px + 10, py + 3, 12, 10);
+    ctx.fillStyle = '#1b1b1b';
+    const f = a.facing || 1; ctx.fillRect(px + (f > 0 ? 17 : 13), py + 7, 2, 2);
+    ctx.fillStyle = a.color; ctx.fillRect(px + 9, py + 1, 14, 4);
+    if (a === selected) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.strokeRect(px + 6, py - 1, 20, 31); }
+  }
+
+  function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+  function drawBubble(a, now) {
+    let text;
+    if (visitor) {
+      if (a.state !== 'working') return;
+      text = '•'.repeat(1 + Math.floor(now / 400) % 3);
+    } else {
+      text = a.state === 'working' ? a.task : a.state === 'walking' ? '→ ' + TYPES[a.target.type].name : null;
+      if (!text) return;
+    }
+    ctx.font = '11px system-ui, sans-serif';
+    const w = Math.ceil(ctx.measureText(text).width) + 12, h = 18;
+    let bx = Math.round(a.px + 16 - w / 2); bx = Math.max(2, Math.min(canvas.width - w - 2, bx));
+    const by = Math.round(a.py) - 22 - (a.state === 'working' && a.spot && a.spot.i ? 20 : 0);
+    ctx.fillStyle = a.state === 'working' ? '#ffffff' : 'rgba(255,255,255,.8)';
+    roundRect(bx, by, w, h, 5); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#1f2328'; ctx.textBaseline = 'middle'; ctx.fillText(text, bx + 6, by + h / 2 + .5);
+  }
+
+  function drawHover() {
+    if (!hover || visitor) return;
+    const { x, y } = hover;
+    const ok = canPlace(tool, x, y);
+    ctx.fillStyle = ok ? 'rgba(255,255,255,.28)' : 'rgba(220,40,40,.28)';
+    const size = TYPES[tool] ? 2 : 1;
+    ctx.fillRect(x * T, y * T, size * T, size * T);
+  }
+
+  // ---- placement ----
+  function canPlace(t, x, y) {
+    if (t === 'erase') return !!buildingAt(x, y) || trees.has(x + ',' + y);
+    if (t === 'tree') return !blocked(x, y) && !agents.some(a => a.x === x && a.y === y) && !buildings.some(b => { const d = door(b); return d.x === x && d.y === y; });
+    if (x + 1 >= COLS || y + 2 >= ROWS) return false;
+    for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 2; dx++) if (blocked(x + dx, y + dy) && !(dy === 2 && dx === 1)) return false;
+    if (buildings.some(b => { const d = door(b); return d.x >= x && d.x < x + 2 && d.y >= y && d.y < y + 2; })) return false;
+    return !agents.some(a => a.x >= x && a.x < x + 2 && a.y >= y && a.y < y + 2);
+  }
+  function place(x, y) {
+    if (!canPlace(tool, x, y)) return;
+    if (tool === 'erase') {
+      const b = buildingAt(x, y);
+      if (b) buildings = buildings.filter(o => o !== b); else trees.delete(x + ',' + y);
+    } else if (tool === 'tree') trees.add(x + ',' + y);
+    else buildings.push({ type: tool, x, y });
+    agents.forEach(a => { freeSpawn(a); if (a.state === 'walking') { a.state = 'idle'; a.timer = 0.1; a.path = []; } });
+    save();
+  }
+
+  // ---- input ----
+  let hover = null;
+  function tileFromEvent(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: Math.floor((e.clientX - r.left) / r.width * COLS), y: Math.floor((e.clientY - r.top) / r.height * ROWS) };
+  }
+  canvas.addEventListener('mousemove', e => { hover = tileFromEvent(e); });
+  canvas.addEventListener('mouseleave', () => { hover = null; });
+  canvas.addEventListener('click', e => {
+    const r = canvas.getBoundingClientRect();
+    const mx = (e.clientX - r.left) / r.width * canvas.width, my = (e.clientY - r.top) / r.height * canvas.height;
+    const hit = agents.find(a => mx >= a.px + 6 && mx <= a.px + 26 && my >= a.py && my <= a.py + 30);
+    if (hit) { selected = selected === hit ? null : hit; renderAgents(); return; }
+    if (visitor) return;
+    const { x, y } = tileFromEvent(e);
+    place(x, y);
+  });
+
+  const toolbar = document.getElementById('toolbar');
+  TOOLS.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'tool'; btn.type = 'button'; btn.dataset.tool = t.id;
+    btn.innerHTML = `<span class="swatch" style="background:${t.color}"></span>${t.label}`;
+    btn.addEventListener('click', () => { tool = t.id; syncTools(); });
+    toolbar.appendChild(btn);
+  });
+  const sp = document.createElement('span'); sp.className = 'spacer'; toolbar.appendChild(sp);
+  const tog = document.createElement('label'); tog.className = 'toggle';
+  tog.innerHTML = '<input type="checkbox" id="visitor"> Visitor view';
+  toolbar.appendChild(tog);
+  const reset = document.createElement('button'); reset.className = 'tool'; reset.type = 'button'; reset.textContent = 'Reset town';
+  reset.addEventListener('click', () => { try { localStorage.removeItem('agent-realms-town'); } catch (e) {} load(); agents.forEach(freeSpawn); });
+  toolbar.appendChild(reset);
+  function syncTools() {
+    toolbar.querySelectorAll('[data-tool]').forEach(b => { b.setAttribute('aria-pressed', String(b.dataset.tool === tool)); b.disabled = visitor; b.style.opacity = visitor ? .45 : 1; });
+  }
+  document.getElementById('visitor').addEventListener('change', e => {
+    visitor = e.target.checked; document.body.classList.toggle('visitor', visitor); syncTools(); renderAgents(); renderLog();
+  });
+
+  // ---- side panel ----
+  const agentsEl = document.getElementById('agents');
+  function agentLine(a) {
+    if (a.state === 'working') return visitor ? `Busy in the ${TYPES[a.target.type].name}` : `${a.task} · ${TYPES[a.target.type].name}`;
+    if (a.state === 'walking') return visitor ? 'Walking' : `Heading to the ${TYPES[a.target.type].name}`;
+    return 'Idle';
+  }
+  function renderAgents() {
+    agentsEl.innerHTML = '';
+    agents.forEach(a => {
+      const d = document.createElement('div');
+      d.className = 'agent' + (a === selected ? ' sel' : '');
+      d.innerHTML = `<i class="dot" style="background:${a.color}"></i><div><b>${a.name}</b><span>${agentLine(a)}</span></div>`;
+      d.addEventListener('click', () => { selected = selected === a ? null : a; renderAgents(); });
+      agentsEl.appendChild(d);
+    });
+  }
+  const entries = [];
+  function log(a, html) {
+    entries.unshift({ a, html, building: a.target && TYPES[a.target.type].name, time: new Date() });
+    if (entries.length > 40) entries.pop();
+    renderLog();
+  }
+  function renderLog() {
+    const el = document.getElementById('log');
+    el.innerHTML = entries.map(e => {
+      const t = e.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const body = visitor ? `was active at the ${e.building}` : e.html;
+      return `<li>${t} · <b>${e.a.name}</b> ${body}</li>`;
+    }).join('') || '<li>Nothing yet.</li>';
+  }
+
+  // ---- loop ----
+  let last = performance.now(), panelTimer = 0;
+  function frame(now) {
+    const dt = Math.min(.05, (now - last) / 1000); last = now;
+    agents.forEach(a => updateAgent(a, dt));
+    const busy = new Set(agents.filter(a => a.state === 'working').map(a => a.target));
+    busy.forEach(emit);
+    for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; if (p.life <= 0) particles.splice(i, 1); }
+
+    drawGround();
+    const drawables = [
+      ...buildings.map(b => ({ z: (b.y + 2) * T, draw: () => drawBuilding(b, busy.has(b)) })),
+      ...[...trees].map(k => { const [x, y] = k.split(',').map(Number); return { z: (y + 1) * T - 1, draw: () => drawTree(x, y) }; }),
+      ...agents.map(a => ({ z: a.py + T, draw: () => drawAgent(a) })),
+    ].sort((p, q) => p.z - q.z);
+    drawables.forEach(d => d.draw());
+    particles.forEach(p => { ctx.fillStyle = `rgba(90,90,90,${Math.max(0, p.life / 2) * .6})`; ctx.fillRect(p.x, p.y, 6, 6); });
+    drawHover();
+    agents.forEach(a => drawBubble(a, now));
+
+    panelTimer -= dt; if (panelTimer <= 0) { renderAgents(); panelTimer = .5; }
+    requestAnimationFrame(frame);
+  }
+
+  load();
+  agents.forEach(freeSpawn);
+  syncTools(); renderAgents(); renderLog();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
