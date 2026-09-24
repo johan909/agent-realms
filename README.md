@@ -1,18 +1,21 @@
 # Agent Realms
 
-A pixel-art town where AI agent "villagers" walk between buildings doing tasks.
+A neon 3D city where AI agents walk between buildings doing tasks.
 Each person will own a town; visitors can see buildings and busy villagers,
 but never what the villagers are working on.
 
 ## Milestone 1 (this version)
 
-- Single static page, no build step: open `index.html` in a browser.
-- Place Library, Forge, Post Office, Market and trees on a grid; remove them.
-- Four villagers path-find between buildings with mock task bubbles.
-- **Visitor view** hides task text and shows only who is busy where.
-- The town layout is saved in your browser.
+- Single static page, no build step: open `index.html` in a browser (Three.js loads from a CDN).
+- Your district: a 3x3 grid of neon buildings (Library, Forge, Post, Market, HQ) with agents
+  walking the streets to work, showing their current task.
+- Two neighbour districts: their agents show only that they are busy, never the task.
+- **Visitor view** previews your own district the way a neighbour sees it.
+- Buttons fly the camera between districts; drag to orbit, scroll to zoom.
 
 ## Next
 
 - Real agent activity feeding the villagers.
-- Accounts and a shared world map of everyone's towns.
+- Placing and upgrading your own buildings on the grid.
+- Accounts and a shared world of everyone's districts.
+- A low-graphics mode for weaker devices.
