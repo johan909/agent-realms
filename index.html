@@ -4,46 +4,56 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Realms</title>
-<meta name="description" content="A neon 3D city where AI agents walk between buildings doing tasks, next to neighbour districts whose work stays private.">
+<meta name="description" content="A Minecraft-style block world: build your town, and watch AI villagers work in it next to a neighbour town whose work stays private.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Silkscreen&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #07040f; --panel: rgba(16, 10, 32, .78); --ink: #ece8ff; --muted: #a49cc4;
-    --line: rgba(160, 120, 255, .28); --accent: #ff2e88; --cyan: #38e8ff;
+    --bg: #8fc9ff; --panel: rgba(20, 20, 24, .72); --ink: #f4f1e6; --muted: #c9c3b0;
+    --line: rgba(255, 255, 255, .22); --gold: #ffd84a; --private: #9ad0ff;
   }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #8fc9ff; } }
+  :root[data-theme="dark"] { --bg: #8fc9ff; }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
-    font: 13px/1.45 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
-  #scene { position: fixed; inset: 0; }
+    font: 20px/1.1 "VT323", ui-monospace, Menlo, monospace; user-select: none; -webkit-user-select: none; }
+  #game { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
   #labels { position: fixed; inset: 0; pointer-events: none; }
-  .hud { position: fixed; z-index: 2; background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-  #top { top: 16px; left: 16px; right: 16px; max-width: 760px; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
-  h1 { margin: 0; font-size: 16px; letter-spacing: .5px; text-shadow: 0 0 12px var(--accent); }
-  #top p { margin: 0; color: var(--muted); flex-basis: 100%; }
-  .btns { display: flex; flex-wrap: wrap; gap: 6px; }
-  button { font: inherit; color: var(--ink); background: rgba(255,255,255,.04); border: 1px solid var(--line);
-    padding: 6px 10px; border-radius: 7px; cursor: pointer; }
-  button:hover { border-color: var(--cyan); }
-  button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 10px rgba(255,46,136,.5) inset; }
-  label.toggle { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; color: var(--muted); }
-  label.toggle input { accent-color: var(--accent); }
-  #side { right: 16px; bottom: 16px; width: 300px; max-height: 46vh; padding: 12px 14px; overflow: auto; }
-  #side h2 { margin: 0 0 8px; font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
-  #log { list-style: none; margin: 0; padding: 0; }
-  #log li { padding: 5px 0; border-bottom: 1px dashed var(--line); color: var(--muted); }
-  #log li b { color: var(--ink); }
-  #legend { left: 16px; bottom: 16px; padding: 10px 12px; display: grid; grid-template-columns: auto auto; gap: 4px 14px; }
-  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
-  @media (max-width: 720px) {
-    #side { left: 16px; right: 16px; width: auto; max-height: 26vh; }
-    #legend { display: none; }
-  }
-  .tag { font: 11px/1.2 "JetBrains Mono", ui-monospace, monospace; color: #fff; background: rgba(10, 6, 24, .82);
-    border: 1px solid rgba(255,255,255,.35); padding: 3px 7px; border-radius: 5px; white-space: nowrap;
-    transform: translateY(-14px); transition: opacity .25s; }
-  .tag.walk { opacity: .7; border-style: dashed; }
-  .tag.private { letter-spacing: 2px; }
-  .tag b { font-weight: 600; }
+  .panel { position: fixed; z-index: 3; background: var(--panel); border: 2px solid var(--line); padding: 8px 10px; }
+  #status { top: 12px; left: 12px; max-width: calc(100vw - 24px); }
+  #status b { font-family: "Silkscreen", monospace; font-weight: 400; font-size: 14px; letter-spacing: .5px; color: var(--gold); }
+  #status span { color: var(--muted); }
+  #help { top: 12px; right: 12px; color: var(--muted); font-size: 17px; line-height: 1.15; }
+  #help b { color: var(--ink); font-weight: 400; }
+  #log { left: 12px; bottom: 96px; width: 330px; max-height: 30vh; overflow: hidden; font-size: 17px; line-height: 1.15; }
+  #log div { color: var(--muted); padding: 2px 0; }
+  #log div b { color: var(--ink); font-weight: 400; }
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; z-index: 3; pointer-events: none; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff; mix-blend-mode: difference; }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { top: 8px; left: 0; height: 2px; width: 18px; }
+  #hotbar { position: fixed; z-index: 3; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px;
+    background: rgba(0,0,0,.45); border: 2px solid rgba(0,0,0,.6); padding: 3px; }
+  .slot { width: 52px; height: 52px; border: 3px solid rgba(255,255,255,.18); position: relative; background-size: cover; image-rendering: pixelated; cursor: pointer; }
+  .slot.sel { border-color: #fff; box-shadow: 0 0 0 2px #000 inset; }
+  .slot i { position: absolute; right: 3px; bottom: 0; font-style: normal; font-size: 16px; color: #fff; text-shadow: 1px 1px 0 #000; }
+  .slot .kit { position: absolute; inset: 6px; display: grid; place-items: center; font-family: "Silkscreen", monospace; font-size: 10px; color: #fff; text-shadow: 1px 1px 0 #000; }
+  #itemname { position: fixed; z-index: 3; bottom: 80px; left: 50%; transform: translateX(-50%); text-shadow: 2px 2px 0 #000; font-size: 22px; transition: opacity .4s; }
+  #card { position: fixed; z-index: 3; left: 50%; top: calc(50% + 26px); transform: translateX(-50%); min-width: 220px; text-align: center; display: none; }
+  #card b { color: var(--gold); font-weight: 400; }
+  #card .priv { color: var(--private); }
+  #toast { position: fixed; z-index: 4; top: 30%; left: 50%; transform: translateX(-50%); text-shadow: 2px 2px 0 #000; font-size: 24px; opacity: 0; transition: opacity .3s; text-align: center; padding: 0 16px; }
+  #start { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; background: rgba(10, 14, 22, .55); cursor: pointer; padding: 16px; }
+  #start .box { background: rgba(20,20,24,.88); border: 3px solid rgba(255,255,255,.25); padding: 22px 26px; max-width: 520px; width: 100%; }
+  #start h1 { font-family: "Silkscreen", monospace; font-weight: 400; font-size: 30px; margin: 0 0 6px; color: var(--gold); text-shadow: 3px 3px 0 #5a3d00; }
+  #start p { margin: 6px 0; color: var(--muted); }
+  #start .go { display: inline-block; margin-top: 12px; padding: 8px 16px; background: #5b8a32; border: 3px solid #2f4c17; color: #fff; font-size: 24px; box-shadow: inset -3px -3px 0 #3f6a20, inset 3px 3px 0 #7fb24c; }
+  #start ul { margin: 10px 0 0; padding-left: 18px; color: var(--ink); columns: 2; column-gap: 20px; }
+  .tag { font: 18px/1 "VT323", monospace; color: #fff; background: rgba(0,0,0,.55); padding: 2px 6px 3px; white-space: nowrap; transform: translateY(-6px); }
+  .tag.walk { color: #d8d8d8; }
+  .tag.priv { color: var(--private); letter-spacing: 3px; }
+  .tag.sign { font-family: "Silkscreen", monospace; font-size: 13px; background: rgba(60, 40, 10, .8); border: 2px solid #8a6a2a; padding: 4px 8px; color: var(--gold); }
+  @media (max-width: 760px) { #help, #log { display: none; } .slot { width: 32px; height: 32px; } .slot .kit { font-size: 7px; inset: 2px; } }
 </style>
 <script type="importmap">
 { "imports": {
@@ -53,365 +63,731 @@
 </script>
 </head>
 <body>
-<canvas id="scene"></canvas>
+<canvas id="game"></canvas>
 <div id="labels"></div>
-
-<div class="hud" id="top">
-  <h1>AGENT REALMS</h1>
-  <div class="btns" id="districts"></div>
-  <label class="toggle"><input type="checkbox" id="visitor"> Visitor view</label>
-  <p>Your district shows what every agent is doing. Neighbour districts show who is busy, never what they are working on. Drag to orbit, scroll to zoom.</p>
+<div id="crosshair"></div>
+<div class="panel" id="status"></div>
+<div class="panel" id="help">
+  <b>WASD</b> move · <b>Space</b> jump<br>
+  <b>F</b> fly · <b>Shift</b> down<br>
+  <b>Left click</b> break · <b>Right click</b> place<br>
+  <b>1-0</b> / scroll pick · <b>V</b> visitor view
 </div>
-
-<div class="hud" id="legend"></div>
-
-<div class="hud" id="side">
-  <h2>Your district · activity</h2>
-  <ul id="log"><li>Agents are heading to work…</li></ul>
+<div class="panel" id="log"></div>
+<div id="hotbar"></div>
+<div id="itemname"></div>
+<div class="panel" id="card"></div>
+<div id="toast"></div>
+<div id="start">
+  <div class="box">
+    <h1>Agent Realms</h1>
+    <p>This is your town. Villagers are AI agents: each one walks to a workplace and gets on with a task. Build new workplaces and they will start using them.</p>
+    <p>Across the river is Kai's town. You can walk over and watch, but you only see <i>that</i> their villagers are busy, never <i>what</i> they are doing.</p>
+    <ul>
+      <li>WASD to move</li><li>Mouse to look</li>
+      <li>Space to jump</li><li>F to fly</li>
+      <li>Left click: break</li><li>Right click: place</li>
+      <li>7-0: building kits</li><li>V: visitor view</li>
+    </ul>
+    <div class="go" id="go">Click to play</div>
+    <p id="mobile" style="display:none">Best on a computer with a keyboard and mouse.</p>
+  </div>
 </div>
 
 <script type="module">
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { Reflector } from 'three/addons/objects/Reflector.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
-// ---------- building types ----------
+// ================= world data =================
+const W = 112, D = 64, H = 28;
+const TERRITORY_X = 61;              // x < 61 is yours; the river and Kai's town are beyond
+const world = new Uint8Array(W * H * D);
+const idx = (x, y, z) => x + W * (z + D * y);
+const inside = (x, y, z) => x >= 0 && x < W && y >= 0 && y < H && z >= 0 && z < D;
+const get = (x, y, z) => inside(x, y, z) ? world[idx(x, y, z)] : 0;
+
+const B = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, PLANKS: 4, LOG: 5, LEAVES: 6, GLASS: 7, BRICK: 8, SAND: 9, WATER: 10,
+  WOOL_P: 11, WOOL_O: 12, WOOL_Y: 13, WOOL_B: 14, PATH: 15, COBBLE: 16 };
+const BLOCK_NAMES = { 1: 'Grass', 2: 'Dirt', 3: 'Stone', 4: 'Planks', 5: 'Log', 6: 'Leaves', 7: 'Glass', 8: 'Bricks', 9: 'Sand', 10: 'Water',
+  11: 'Purple wool', 12: 'Orange wool', 13: 'Yellow wool', 14: 'Blue wool', 15: 'Path', 16: 'Cobblestone' };
+const TRANSPARENT = new Set([B.LEAVES, B.GLASS, B.WATER]);
+const solid = (id) => id !== B.AIR && id !== B.WATER;
+
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+function hash2(x, z) { let h = (x * 374761393 + z * 668265263) ^ 0x5bd1e995; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function smooth(x, z, s) {
+  const gx = Math.floor(x / s), gz = Math.floor(z / s), fx = x / s - gx, fz = z / s - gz;
+  const u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+  const a = hash2(gx, gz), b = hash2(gx + 1, gz), c = hash2(gx, gz + 1), d = hash2(gx + 1, gz + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+// ================= workplaces =================
 const TYPES = {
-  library: { name: 'LIBRARY', color: 0xb04bff, css: '#b04bff', tasks: ['Researching competitors', 'Reading API docs', 'Summarising a paper', 'Collecting sources'] },
-  forge:   { name: 'FORGE', color: 0xff5a36, css: '#ff5a36', tasks: ['Fixing login bug', 'Writing unit tests', 'Refactoring parser', 'Reviewing a PR'] },
-  post:    { name: 'POST', color: 0x2f8bff, css: '#2f8bff', tasks: ['Drafting client email', 'Sorting the inbox', 'Sending weekly report', 'Booking a meeting'] },
-  market:  { name: 'MARKET', color: 0xffc83d, css: '#ffc83d', tasks: ['Updating price list', 'Qualifying leads', 'Comparing suppliers', 'Preparing an invoice'] },
-  hub:     { name: 'HQ', color: 0xff2e88, css: '#ff2e88', tasks: ['Planning the sprint', 'Writing a status update', 'Triaging new tasks'] },
+  library: { name: 'Library', wool: B.WOOL_P, wall: B.PLANKS, trim: B.LOG, css: '#9b59d0',
+    tasks: ['Researching competitors', 'Reading API docs', 'Summarising a paper', 'Collecting sources', 'Fact-checking a draft'] },
+  forge:   { name: 'Forge', wool: B.WOOL_O, wall: B.COBBLE, trim: B.STONE, css: '#e0782f',
+    tasks: ['Fixing a login bug', 'Writing unit tests', 'Refactoring the parser', 'Reviewing a pull request', 'Speeding up a query'] },
+  market:  { name: 'Market', wool: B.WOOL_Y, wall: B.PLANKS, trim: B.LOG, css: '#e8c534',
+    tasks: ['Updating the price list', 'Qualifying new leads', 'Comparing suppliers', 'Preparing an invoice', 'Checking stock levels'] },
+  post:    { name: 'Post Office', wool: B.WOOL_B, wall: B.BRICK, trim: B.STONE, css: '#3d7fd6',
+    tasks: ['Drafting a client email', 'Sorting the inbox', 'Sending the weekly report', 'Booking a meeting', 'Replying to support'] },
 };
-const TYPE_KEYS = Object.keys(TYPES);
+const WOOL_TO_TYPE = Object.fromEntries(Object.entries(TYPES).map(([k, t]) => [t.wool, k]));
+const FRONT = [[0, 1], [0, -1], [1, 0], [-1, 0]];
 
-const DISTRICTS = [
-  { id: 'mine', name: 'Your district', offset: -0, owner: true, agents: 14, seed: 7 },
-  { id: 'neon', name: 'Neon Row', offset: -64, owner: false, agents: 10, seed: 21 },
-  { id: 'harbor', name: 'Harbor Heights', offset: 64, owner: false, agents: 10, seed: 42 },
+let buildings = []; // {type, owner, banner:{x,y,z}, spots:[{x,z}], facing}
+
+function surfaceY(x, z) { for (let y = H - 1; y >= 0; y--) { const id = get(x, y, z); if (solid(id) || id === B.WATER) return y + 1; } return 0; }
+
+// A 5x5 house with walls, windows, a door on the front and a wool roof in the workplace colour.
+function stampKit(x0, z0, type, facing, owner) {
+  const t = TYPES[type];
+  const map = (lx, lz) => {
+    switch (facing) {
+      case 0: return [x0 + lx, z0 + lz];
+      case 1: return [x0 + 4 - lx, z0 + 4 - lz];
+      case 2: return [x0 + lz, z0 + 4 - lx];
+      default: return [x0 + 4 - lz, z0 + lx];
+    }
+  };
+  let g = 0;
+  for (let lx = 0; lx < 5; lx++) for (let lz = 0; lz < 5; lz++) { const [x, z] = map(lx, lz); g = Math.max(g, surfaceY(x, z)); }
+  if (g + 6 >= H) return null;
+  // clear the space (including roof overhang) and lay a foundation
+  for (let lx = -1; lx < 6; lx++) for (let lz = -1; lz < 6; lz++) {
+    const [x, z] = map(lx, lz); if (!inside(x, 0, z)) continue;
+    for (let y = g; y < g + 7; y++) world[idx(x, y, z)] = B.AIR;
+    if (lx >= 0 && lx < 5 && lz >= 0 && lz < 5) for (let y = g - 1; y >= 0 && !solid(get(x, y, z)); y--) world[idx(x, y, z)] = B.COBBLE;
+  }
+  for (let lx = 0; lx < 5; lx++) for (let lz = 0; lz < 5; lz++) {
+    const [x, z] = map(lx, lz);
+    world[idx(x, g - 1, z)] = B.PLANKS; // floor
+    const edge = lx === 0 || lx === 4 || lz === 0 || lz === 4, corner = (lx === 0 || lx === 4) && (lz === 0 || lz === 4);
+    for (let y = g; y < g + 4; y++) {
+      let id = B.AIR;
+      if (corner) id = t.trim;
+      else if (edge) {
+        id = y === g + 3 ? t.trim : t.wall;
+        const isDoor = lz === 4 && lx === 2 && y < g + 2;
+        const isWindow = y === g + 1 && ((lz === 0 && lx === 2) || ((lx === 0 || lx === 4) && lz === 2));
+        if (isDoor) id = B.AIR; else if (isWindow) id = B.GLASS;
+      }
+      world[idx(x, y, z)] = id;
+    }
+  }
+  // roof: wool, stepped
+  for (let lx = -1; lx < 6; lx++) for (let lz = -1; lz < 6; lz++) {
+    const [x, z] = map(lx, lz); if (!inside(x, 0, z)) continue;
+    world[idx(x, g + 4, z)] = t.wool;
+    if (lx >= 1 && lx <= 3 && lz >= 1 && lz <= 3) world[idx(x, g + 5, z)] = t.wool;
+  }
+  const [bx, bz] = map(2, 4);
+  const banner = { x: bx, y: g + 2, z: bz }; world[idx(bx, g + 2, bz)] = t.wool; // sign above the door
+  const [fx, fz] = FRONT[facing];
+  const spots = [-1, 1].map(o => { const [sx, sz] = map(2 + o, 5); return { x: sx + fx, z: sz + fz }; });
+  spots.push({ x: bx + fx, z: bz + fz });
+  const b = { type, owner, banner, spots, facing, door: { x: bx, z: bz } };
+  buildings.push(b);
+  return b;
+}
+
+function plantTree(x, z, r) {
+  const g = surfaceY(x, z); if (get(x, g - 1, z) !== B.GRASS) return;
+  const h = 4 + Math.floor(r() * 2);
+  for (let y = g; y < g + h; y++) world[idx(x, y, z)] = B.LOG;
+  for (let dy = h - 2; dy <= h + 1; dy++) {
+    const rad = dy >= h ? 1 : 2;
+    for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
+      if (rad === 2 && Math.abs(dx) === 2 && Math.abs(dz) === 2 && r() < .7) continue;
+      const X = x + dx, Y = g + dy, Z = z + dz;
+      if (inside(X, Y, Z) && get(X, Y, Z) === B.AIR) world[idx(X, Y, Z)] = B.LEAVES;
+    }
+  }
+}
+
+const DEFAULT_KITS = [
+  { x: 10, z: 10, type: 'library', f: 0, owner: 'me' }, { x: 40, z: 10, type: 'forge', f: 0, owner: 'me' },
+  { x: 10, z: 42, type: 'market', f: 1, owner: 'me' }, { x: 40, z: 42, type: 'post', f: 1, owner: 'me' },
+  { x: 76, z: 12, type: 'forge', f: 0, owner: 'kai' }, { x: 94, z: 12, type: 'library', f: 0, owner: 'kai' },
+  { x: 76, z: 42, type: 'post', f: 1, owner: 'kai' }, { x: 94, z: 42, type: 'market', f: 1, owner: 'kai' },
 ];
-const NAMES = ['Ada', 'Bram', 'Cleo', 'Dev', 'Echo', 'Finn', 'Gia', 'Hex', 'Ines', 'Juno', 'Kai', 'Lux', 'Mira', 'Nova', 'Orin', 'Pax'];
 
-// ---------- renderer / scene ----------
-const canvas = document.getElementById('scene');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+function generate() {
+  world.fill(0); buildings = [];
+  const r = rng(1234);
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
+    const edge = Math.min(x, W - 1 - x, z, D - 1 - z);
+    let h = 6 + (smooth(x, z, 9) > .72 ? 1 : 0);
+    if (edge < 7) h += Math.round((7 - edge) * .55 + smooth(x, z, 5) * 3);
+    const river = x >= 62 && x <= 67;
+    if (river) h = 4;
+    for (let y = 0; y < h; y++) {
+      let id = y < h - 3 ? B.STONE : y < h - 1 ? B.DIRT : B.GRASS;
+      if (river) id = y < h - 1 ? B.DIRT : B.SAND;
+      if (!river && (x === 61 || x === 68) && y === h - 1) id = B.SAND;
+      world[idx(x, y, z)] = id;
+    }
+    if (river) { world[idx(x, 4, z)] = B.WATER; world[idx(x, 5, z)] = B.WATER; }
+  }
+  // bridge and main streets
+  for (let x = 58; x <= 71; x++) for (let z = 30; z <= 32; z++) { const g = surfaceY(x, z); world[idx(x, Math.max(g - 1, 5), z)] = B.PLANKS; }
+  for (const [xa, xb] of [[6, 58], [70, 106]]) for (let x = xa; x <= xb; x++) for (let z = 30; z <= 32; z++) if (get(x, 5, z) === B.GRASS) world[idx(x, 5, z)] = B.PATH;
+  for (const xc of [12, 42, 78, 96]) for (let z = 16; z <= 42; z++) for (let x = xc; x <= xc + 1; x++) if (get(x, 5, z) === B.GRASS) world[idx(x, 5, z)] = B.PATH;
+  DEFAULT_KITS.forEach(k => stampKit(k.x, k.z, k.type, k.f, k.owner));
+  // trees away from houses and streets
+  for (let i = 0; i < 90; i++) {
+    const x = 2 + Math.floor(r() * (W - 4)), z = 2 + Math.floor(r() * (D - 4));
+    if (x >= 58 && x <= 71) continue;
+    if (z >= 27 && z <= 35) continue;
+    if (buildings.some(b => Math.abs(b.door.x - x) < 7 && Math.abs(b.door.z - z) < 9)) continue;
+    if ([12, 42, 78, 96].some(xc => x >= xc - 2 && x <= xc + 3)) continue;
+    plantTree(x, z, r);
+  }
+}
+
+// ================= persistence (only your changes are stored) =================
+const SAVE_KEY = 'agent-realms-world-v1';
+const changes = new Map();
+function setBlock(x, y, z, id) { if (!inside(x, y, z)) return; world[idx(x, y, z)] = id; changes.set(idx(x, y, z), id); }
+let saveTimer = 0;
+function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(() => {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ c: [...changes], b: buildings })); } catch (e) {}
+}, 800); }
+function loadSave() {
+  let data = null;
+  try { data = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) {}
+  if (!data || !Array.isArray(data.c) || !Array.isArray(data.b)) return;
+  for (const [i, id] of data.c) { world[i] = id; changes.set(i, id); }
+  buildings = data.b;
+}
+
+// ================= textures =================
+function makeTex(draw, transparent) {
+  const c = document.createElement('canvas'); c.width = c.height = 16;
+  const g = c.getContext('2d'); draw(g, rng(Math.floor(Math.random() * 1e9)));
+  const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace; t.generateMipmaps = false; t.userData.canvas = c; return t;
+}
+function noise(g, r, base, vary, alphaHoles = 0) {
+  const [R, G, Bc] = base;
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    if (alphaHoles && r() < alphaHoles) continue;
+    const k = 1 + (r() - .5) * vary;
+    g.fillStyle = `rgb(${Math.min(255, R * k) | 0},${Math.min(255, G * k) | 0},${Math.min(255, Bc * k) | 0})`; g.fillRect(x, y, 1, 1);
+  }
+}
+const TEX = {
+  grassTop: makeTex((g, r) => noise(g, r, [98, 168, 64], .28)),
+  grassSide: makeTex((g, r) => { noise(g, r, [134, 96, 67], .3); for (let x = 0; x < 16; x++) { const d = 3 + Math.floor(r() * 3); for (let y = 0; y < d; y++) { g.fillStyle = `rgb(${90 + r() * 20 | 0},${156 + r() * 24 | 0},${58 + r() * 14 | 0})`; g.fillRect(x, y, 1, 1); } } }),
+  dirt: makeTex((g, r) => noise(g, r, [134, 96, 67], .32)),
+  stone: makeTex((g, r) => { noise(g, r, [128, 128, 128], .22); for (let i = 0; i < 10; i++) { g.fillStyle = 'rgba(70,70,70,.6)'; g.fillRect(r() * 16 | 0, r() * 16 | 0, 2, 1); } }),
+  cobble: makeTex((g, r) => { noise(g, r, [120, 120, 120], .35); g.fillStyle = 'rgba(40,40,40,.55)'; for (const [x, y, w, h] of [[0, 4, 16, 1], [0, 10, 16, 1], [5, 0, 1, 4], [11, 4, 1, 6], [3, 10, 1, 6], [13, 10, 1, 6], [8, 0, 1, 4]]) g.fillRect(x, y, w, h); }),
+  planks: makeTex((g, r) => { noise(g, r, [176, 138, 84], .18); g.fillStyle = 'rgba(90,60,30,.55)'; for (let y = 3; y < 16; y += 4) g.fillRect(0, y, 16, 1); for (const [x, y] of [[4, 0], [12, 4], [2, 8], [9, 12]]) g.fillRect(x, y, 1, 3); }),
+  logSide: makeTex((g, r) => { noise(g, r, [104, 80, 48], .25); g.fillStyle = 'rgba(50,35,20,.5)'; for (let x = 1; x < 16; x += 3 + (r() * 2 | 0)) g.fillRect(x, 0, 1, 16); }),
+  logTop: makeTex((g, r) => { noise(g, r, [170, 136, 82], .15); g.strokeStyle = 'rgba(100,70,40,.7)'; g.lineWidth = 1; for (const s of [2, 5]) g.strokeRect(s + .5, s + .5, 15 - 2 * s, 15 - 2 * s); g.fillStyle = '#6a5030'; g.fillRect(0, 0, 16, 1); g.fillRect(0, 15, 16, 1); g.fillRect(0, 0, 1, 16); g.fillRect(15, 0, 1, 16); }),
+  leaves: makeTex((g, r) => noise(g, r, [58, 130, 42], .45, .18)),
+  glass: makeTex((g) => { g.fillStyle = 'rgba(210,240,255,.18)'; g.fillRect(0, 0, 16, 16); g.fillStyle = 'rgba(255,255,255,.9)'; g.fillRect(0, 0, 16, 1); g.fillRect(0, 15, 16, 1); g.fillRect(0, 0, 1, 16); g.fillRect(15, 0, 1, 16); g.fillRect(3, 3, 1, 3); g.fillRect(4, 2, 1, 1); g.fillRect(10, 9, 1, 3); }),
+  brick: makeTex((g, r) => { noise(g, r, [160, 78, 58], .2); g.fillStyle = '#c8b8a8'; for (let y = 3; y < 16; y += 4) g.fillRect(0, y, 16, 1); for (let row = 0; row < 4; row++) for (let x = row % 2 ? 4 : 0; x < 16; x += 8) g.fillRect(x, row * 4, 1, 3); }),
+  sand: makeTex((g, r) => noise(g, r, [219, 205, 150], .12)),
+  water: makeTex((g, r) => noise(g, r, [52, 102, 214], .2)),
+  path: makeTex((g, r) => { noise(g, r, [148, 124, 84], .3); for (let i = 0; i < 12; i++) { g.fillStyle = 'rgba(100,100,100,.6)'; g.fillRect(r() * 16 | 0, r() * 16 | 0, 1, 1); } }),
+  woolP: makeTex((g, r) => noise(g, r, [140, 70, 190], .18)),
+  woolO: makeTex((g, r) => noise(g, r, [226, 118, 36], .18)),
+  woolY: makeTex((g, r) => noise(g, r, [232, 196, 46], .18)),
+  woolB: makeTex((g, r) => noise(g, r, [52, 102, 200], .18)),
+};
+
+function mat(tex, opts = {}) { return new THREE.MeshLambertMaterial({ map: tex, ...opts }); }
+function faces(side, top, bottom) { return [side, side, top, bottom || top, side, side]; }
+const MATS = {
+  [B.GRASS]: faces(mat(TEX.grassSide), mat(TEX.grassTop), mat(TEX.dirt)),
+  [B.DIRT]: faces(mat(TEX.dirt)), [B.STONE]: faces(mat(TEX.stone)), [B.COBBLE]: faces(mat(TEX.cobble)),
+  [B.PLANKS]: faces(mat(TEX.planks)), [B.LOG]: faces(mat(TEX.logSide), mat(TEX.logTop)),
+  [B.LEAVES]: faces(mat(TEX.leaves, { alphaTest: .5, side: THREE.DoubleSide })),
+  [B.GLASS]: faces(mat(TEX.glass, { transparent: true, depthWrite: false })),
+  [B.BRICK]: faces(mat(TEX.brick)), [B.SAND]: faces(mat(TEX.sand)),
+  [B.WATER]: faces(mat(TEX.water, { transparent: true, opacity: .72, depthWrite: false })),
+  [B.WOOL_P]: faces(mat(TEX.woolP)), [B.WOOL_O]: faces(mat(TEX.woolO)), [B.WOOL_Y]: faces(mat(TEX.woolY)), [B.WOOL_B]: faces(mat(TEX.woolB)),
+  [B.PATH]: faces(mat(TEX.path)),
+};
+const ICON_TEX = { [B.GRASS]: TEX.grassSide, [B.STONE]: TEX.stone, [B.PLANKS]: TEX.planks, [B.BRICK]: TEX.brick, [B.GLASS]: TEX.glass, [B.LOG]: TEX.logSide };
+
+// ================= renderer =================
+const canvas = document.getElementById('game');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
-
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x07040f);
-scene.fog = new THREE.FogExp2(0x0b0620, 0.011);
-
-const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 600);
-camera.position.set(6, 3.2, 42);
-
+const SKY = new THREE.Color(0x8fc9ff);
+scene.background = SKY; scene.fog = new THREE.Fog(SKY, 38, 110);
+const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 300);
+scene.add(new THREE.HemisphereLight(0xdff0ff, 0x6a5a40, 1.05));
+const sun = new THREE.DirectionalLight(0xfff4de, 1.1); sun.position.set(0.5, 1, 0.3); scene.add(sun);
 const labelRenderer = new CSS2DRenderer({ element: document.getElementById('labels') });
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(6, 5, 0);
-controls.enableDamping = true;
-controls.maxPolarAngle = Math.PI * 0.49;
-controls.minDistance = 6;
-controls.maxDistance = 140;
-
-scene.add(new THREE.AmbientLight(0x6a4cff, 0.35));
-const moon = new THREE.DirectionalLight(0x9f8cff, 0.5); moon.position.set(-30, 60, 20); scene.add(moon);
-
-// seeded random so each district looks the same every visit
-function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
-
-// ---------- ground: a wet, reflective street ----------
-const mirror = new Reflector(new THREE.PlaneGeometry(400, 400), {
-  textureWidth: Math.floor(window.innerWidth * 0.6), textureHeight: Math.floor(window.innerHeight * 0.6), color: 0x8a80a8,
-});
-mirror.rotation.x = -Math.PI / 2;
-scene.add(mirror);
-const tint = new THREE.Mesh(new THREE.PlaneGeometry(400, 400),
-  new THREE.MeshStandardMaterial({ color: 0x120a26, transparent: true, opacity: 0.72, roughness: 0.4, metalness: 0.2 }));
-tint.rotation.x = -Math.PI / 2; tint.position.y = 0.01;
-scene.add(tint);
-
-// stars
+// sun disc and clouds
 {
-  const g = new THREE.BufferGeometry(), n = 1400, p = new Float32Array(n * 3), r = rng(3);
-  for (let i = 0; i < n; i++) {
-    const th = r() * Math.PI * 2, ph = r() * Math.PI * 0.45, R = 300;
-    p.set([R * Math.cos(th) * Math.cos(ph), 40 + R * Math.sin(ph), R * Math.sin(th) * Math.cos(ph)], i * 3);
+  const s = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshBasicMaterial({ color: 0xfff6c8, fog: false }));
+  s.position.set(W / 2 + 90, 140, D / 2 + 60); s.lookAt(W / 2, 0, D / 2); scene.add(s);
+}
+const clouds = new THREE.Group(); scene.add(clouds);
+{
+  const r = rng(77), m = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: .9, emissive: 0x777777 });
+  for (let i = 0; i < 16; i++) {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(8 + r() * 14, 1.5, 6 + r() * 10), m);
+    c.position.set(r() * 200 - 40, 40 + r() * 4, r() * 140 - 40); clouds.add(c);
   }
-  g.setAttribute('position', new THREE.BufferAttribute(p, 3));
-  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 0.9, sizeAttenuation: true, fog: false })));
 }
 
-// ---------- city layout ----------
-// Each district is a 3x3 grid of blocks. Streets run along LINES in x and z (local coords).
-const LINES = [-18, -6, 6, 18];
-const BLOCKS = [-12, 0, 12];
-
-function windowTexture(color, floors, cols, r) {
-  const c = document.createElement('canvas'); c.width = cols * 8; c.height = floors * 8;
-  const x = c.getContext('2d'); x.fillStyle = '#05030a'; x.fillRect(0, 0, c.width, c.height);
-  const col = new THREE.Color(color);
-  for (let f = 0; f < floors; f++) for (let k = 0; k < cols; k++) {
-    const lit = r() < 0.55, b = lit ? 0.55 + r() * 0.45 : 0.06;
-    x.fillStyle = `rgb(${col.r * 255 * b | 0},${col.g * 255 * b | 0},${col.b * 255 * b | 0})`;
-    x.fillRect(k * 8 + 2, f * 8 + 2, 4, 5);
+// ================= meshing =================
+const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+const meshes = new Map();
+const dummy = new THREE.Matrix4();
+const NB = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+function exposed(x, y, z, id) {
+  for (const [dx, dy, dz] of NB) {
+    const X = x + dx, Y = y + dy, Z = z + dz;
+    if (!inside(X, Y, Z)) { if (Y >= H) return true; continue; }
+    const n = world[idx(X, Y, Z)];
+    if (n === B.AIR) return true;
+    if (id !== B.WATER && TRANSPARENT.has(n) && n !== id) return true;
+    if (id === B.LEAVES && n === B.LEAVES) return true;
   }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter; return t;
+  return false;
+}
+function rebuild() {
+  const lists = new Map();
+  for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+    const id = world[idx(x, y, z)]; if (!id) continue;
+    if (!exposed(x, y, z, id)) continue;
+    let l = lists.get(id); if (!l) lists.set(id, l = []); l.push(x, y, z);
+  }
+  for (const [id, m] of meshes) if (!lists.has(id)) m.count = 0;
+  for (const [id, l] of lists) {
+    const n = l.length / 3; let m = meshes.get(id);
+    if (!m || m.instanceMatrix.count < n) {
+      if (m) { scene.remove(m); m.dispose(); }
+      m = new THREE.InstancedMesh(boxGeo, MATS[id], Math.ceil(n * 1.4) + 64);
+      if (id === B.WATER || id === B.GLASS) m.renderOrder = 2;
+      m.frustumCulled = false; meshes.set(id, m); scene.add(m);
+    }
+    for (let i = 0; i < n; i++) { dummy.makeTranslation(l[i * 3] + .5, l[i * 3 + 1] + .5, l[i * 3 + 2] + .5); m.setMatrixAt(i, dummy); }
+    m.count = n; m.instanceMatrix.needsUpdate = true;
+  }
+  computeWalk();
 }
 
-function signTexture(text, css) {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
-  const x = c.getContext('2d'); x.fillStyle = 'rgba(0,0,0,0)'; x.fillRect(0, 0, 256, 64);
-  x.font = 'bold 40px ui-monospace, Menlo, monospace'; x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.shadowColor = css; x.shadowBlur = 14; x.fillStyle = '#ffffff'; x.fillText(text, 128, 34);
-  x.fillStyle = css; x.fillText(text, 128, 34);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+// ================= villagers' walk grid =================
+const surf = new Int16Array(W * D), walk = new Uint8Array(W * D);
+function computeWalk() {
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
+    let s = 0, top = 0;
+    for (let y = H - 1; y >= 0; y--) { const id = get(x, y, z); if (id) { s = y + 1; top = id; break; } }
+    surf[x + W * z] = s;
+    walk[x + W * z] = top !== B.WATER && top !== B.LEAVES && top !== B.GLASS && s + 2 < H ? 1 : 0;
+  }
 }
-
-const buildingsByDistrict = new Map();
-
-function buildDistrict(d) {
-  const r = rng(d.seed), group = new THREE.Group(); group.position.x = d.offset; scene.add(group);
-  const buildings = [];
-
-  // street neon strips
-  const stripMat = (c) => new THREE.MeshBasicMaterial({ color: c });
-  for (const L of LINES) {
-    for (const side of [-1.5, 1.5]) {
-      const a = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.04, 36), stripMat(0x38e8ff)); a.position.set(L + side, 0.03, 0); group.add(a);
-      const b = new THREE.Mesh(new THREE.BoxGeometry(36, 0.04, 0.08), stripMat(0xff2e88)); b.position.set(0, 0.03, L + side); group.add(b);
+function findPath(sx, sz, tx, tz) {
+  const start = sx + W * sz, goal = tx + W * tz;
+  if (!walk[goal]) return null;
+  const prev = new Int32Array(W * D).fill(-2); prev[start] = -1;
+  const q = new Int32Array(W * D); let qh = 0, qt = 0; q[qt++] = start;
+  while (qh < qt) {
+    const c = q[qh++];
+    if (c === goal) { const p = []; let k = c; while (k !== start) { p.unshift({ x: k % W, z: (k / W) | 0 }); k = prev[k]; } return p; }
+    const cx = c % W, cz = (c / W) | 0;
+    for (const [dx, dz] of FRONT) {
+      const nx = cx + dx, nz = cz + dz; if (nx < 0 || nz < 0 || nx >= W || nz >= D) continue;
+      const n = nx + W * nz;
+      if (prev[n] !== -2 || !walk[n] || Math.abs(surf[n] - surf[c]) > 1) continue;
+      prev[n] = c; q[qt++] = n;
     }
   }
-  // street lamps
-  const lampMat = new THREE.MeshBasicMaterial({ color: 0xffb35c });
-  const poleMat = new THREE.MeshStandardMaterial({ color: 0x1a1430, roughness: 0.6 });
-  for (const L of LINES) for (const B of BLOCKS) {
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 3.2), poleMat); pole.position.set(L + 1.85, 1.6, B + 3); group.add(pole);
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8), lampMat); bulb.position.set(L + 1.6, 3.2, B + 3); group.add(bulb);
-    const pool = new THREE.Mesh(new THREE.CircleGeometry(1.6, 24), new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0.12, depthWrite: false }));
-    pool.rotation.x = -Math.PI / 2; pool.position.set(L + 1.4, 0.035, B + 3); group.add(pool);
-  }
-
-  // buildings, one per block; the center block of every district is its HQ
-  let n = 0;
-  for (const bx of BLOCKS) for (const bz of BLOCKS) {
-    const type = bx === 0 && bz === 0 ? 'hub' : TYPE_KEYS[(n++ + d.seed) % 4];
-    const t = TYPES[type];
-    const w = 6 + r() * 1.6, depth = 6 + r() * 1.6, h = type === 'hub' ? 30 + r() * 8 : 9 + r() * 20;
-    const floors = Math.round(h / 1.2), cols = Math.round(w / 1.1);
-    const tex = windowTexture(t.color, floors, cols, r);
-    const side = new THREE.MeshStandardMaterial({ color: 0x05030a, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.95, roughness: 0.5, metalness: 0.4 });
-    const top = new THREE.MeshStandardMaterial({ color: 0x0c0818, roughness: 0.8 });
-    const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, depth), [side, side, top, top, side, side]);
-    box.position.set(bx, h / 2, bz); group.add(box);
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(box.geometry), new THREE.LineBasicMaterial({ color: t.color }));
-    edges.position.copy(box.position); group.add(edges);
-    // neon bands every few floors
-    for (let y = 4; y < h - 1; y += 6 + Math.floor(r() * 4)) {
-      const band = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, 0.08, depth + 0.12), new THREE.MeshBasicMaterial({ color: t.color }));
-      band.position.set(bx, y, bz); group.add(band);
-    }
-    // sign above the door, facing the street
-    const signMat = new THREE.MeshBasicMaterial({ map: signTexture(t.name, t.css), transparent: true, depthWrite: false });
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(4, 1), signMat);
-    sign.position.set(bx, 3.4, bz + depth / 2 + 0.05); group.add(sign);
-    // door light
-    const door = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2.2), new THREE.MeshBasicMaterial({ color: t.color, transparent: true, opacity: 0.5 }));
-    door.position.set(bx, 1.1, bz + depth / 2 + 0.04); group.add(door);
-
-    buildings.push({ type, x: bx, z: bz, door: { x: bx, z: bz + 6 }, doorMesh: door, bandBase: 0.5, busy: 0 });
-  }
-  buildingsByDistrict.set(d.id, buildings);
-  return group;
+  return null;
 }
 
-DISTRICTS.forEach(buildDistrict);
-
-// bridges between districts
-for (const x of [-32, 32]) for (const z of LINES) {
-  const s = new THREE.Mesh(new THREE.BoxGeometry(28, 0.04, 0.08), new THREE.MeshBasicMaterial({ color: 0x38e8ff }));
-  s.position.set(x, 0.03, z - 1.5); scene.add(s);
-  const s2 = s.clone(); s2.position.z = z + 1.5; scene.add(s2);
-}
-
-// ---------- agents ----------
-const isLine = (v) => LINES.some(l => Math.abs(l - v) < 1e-3);
-const nearest = (arr, v) => arr.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a);
-
-// Route along streets only: get onto a z-street, drive to an x-street near the target, then to the door.
-function route(f, t) {
-  const pts = []; let cur = { x: f.x, z: f.z };
-  if (!isLine(cur.z)) { cur = { x: cur.x, z: nearest(LINES, t.z) }; pts.push(cur); }
-  const xi = nearest(LINES, t.x);
-  if (Math.abs(cur.x - xi) > 1e-3) pts.push({ x: xi, z: cur.z });
-  pts.push({ x: xi, z: t.z });
-  pts.push({ x: t.x, z: t.z });
-  return pts;
-}
-
-const agents = [];
-const agentGeo = new THREE.CapsuleGeometry(0.28, 0.55, 4, 10);
-const haloGeo = new THREE.RingGeometry(0.35, 0.55, 24);
-
+// ================= villagers =================
+const NAMES_ME = ['Ada', 'Bram', 'Cleo', 'Dev', 'Echo', 'Finn', 'Gia'];
+const NAMES_KAI = ['Juno', 'Lux', 'Mira', 'Nova', 'Orin', 'Pax'];
+const ROBES = [0x7b4a2a, 0x3f6e3a, 0x6b3f86, 0x2f5d8a, 0x8a2f2f, 0x5a5a5a, 0xa27b2c];
+const villagers = [];
 let visitor = false;
 
-function makeAgent(d, i, r) {
-  const colorKey = TYPE_KEYS[i % TYPE_KEYS.length];
-  const color = new THREE.Color(TYPES[colorKey].color).lerp(new THREE.Color(0xffffff), 0.35);
-  const mesh = new THREE.Mesh(agentGeo, new THREE.MeshBasicMaterial({ color }));
-  const halo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
-  halo.rotation.x = -Math.PI / 2; halo.position.y = -0.55;
-  mesh.add(halo);
-  const start = { x: LINES[Math.floor(r() * 4)], z: BLOCKS[Math.floor(r() * 3)] };
-  mesh.position.set(d.offset + start.x, 0.6, start.z);
-  scene.add(mesh);
-
-  const el = document.createElement('div'); el.className = 'tag'; el.style.opacity = 0;
-  const label = new CSS2DObject(el); label.position.set(0, 0.9, 0); mesh.add(label);
-
-  const name = d.owner ? NAMES[i % NAMES.length] : `${d.name.split(' ')[0]}-${i + 1}`;
-  return { d, name, mesh, halo, el, label, pos: { ...start }, path: [], state: 'idle', timer: 0.3 + r() * 3,
-    target: null, spot: null, task: null, speed: 2.4 + r() * 1.2, lane: (r() - 0.5) * 0.9, phase: r() * 6, r };
+function box(w, h, d, color) { return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color })); }
+function makeVillager(name, owner, i, sx, sz) {
+  const g = new THREE.Group();
+  const robe = ROBES[i % ROBES.length];
+  const legs = [box(.22, .6, .22, 0x3a2a1e), box(.22, .6, .22, 0x3a2a1e)];
+  legs[0].position.set(-.12, .3, 0); legs[1].position.set(.12, .3, 0);
+  const body = box(.5, .75, .32, robe); body.position.y = .98;
+  const head = box(.46, .5, .46, 0xc99a74); head.position.y = 1.6;
+  const nose = box(.1, .18, .1, 0xb07e5a); nose.position.set(0, 1.52, .27);
+  const brow = box(.46, .06, .02, 0x3a2a1e); brow.position.set(0, 1.7, .235);
+  const arms = box(.62, .2, .24, robe); arms.position.set(0, 1.08, .2);
+  const armPivot = new THREE.Group(); armPivot.position.set(0, 1.2, 0); arms.position.set(0, -.12, .2); armPivot.add(arms);
+  g.add(...legs, body, head, nose, brow, armPivot);
+  g.traverse(o => { if (o.isMesh) o.userData.villager = true; });
+  scene.add(g);
+  const el = document.createElement('div'); el.className = 'tag';
+  const label = new CSS2DObject(el); label.position.set(0, 2.15, 0); g.add(label);
+  const v = { name, owner, g, legs, armPivot, el, label, tx: sx, tz: sz, x: sx + .5, z: sz + .5, y: surf[sx + W * sz],
+    path: [], state: 'idle', timer: 1 + i * .7, target: null, spot: null, task: null, last: null, r: rng(i * 31 + (owner === 'me' ? 1 : 99)), phase: Math.random() * 6 };
+  g.userData.v = v;
+  villagers.push(v);
 }
 
-DISTRICTS.forEach(d => { const r = rng(d.seed + 99); for (let i = 0; i < d.agents; i++) agents.push(makeAgent(d, i, r)); });
+function nearestWalkable(x, z) {
+  for (let r = 0; r < 20; r++) for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+    const X = x + dx, Z = z + dz; if (X >= 0 && Z >= 0 && X < W && Z < D && walk[X + W * Z]) return [X, Z];
+  }
+  return [x, z];
+}
 
-function pickJob(a) {
-  const blds = buildingsByDistrict.get(a.d.id);
-  const taken = new Set(agents.filter(o => o !== a && o.d === a.d && o.spot).map(o => o.spot.key));
-  const order = blds.filter(b => b !== a.last).sort(() => a.r() - 0.5);
-  for (const b of order) {
-    for (const dx of [-1.6, -0.5, 0.6, 1.7]) {
-      const key = b.x + ':' + dx;
-      if (taken.has(key)) continue;
-      a.spot = { key, x: b.x + dx, z: b.door.z };
-      a.target = b; a.path = route(a.pos, a.spot); a.state = 'walking';
-      const tasks = TYPES[b.type].tasks; a.task = tasks[Math.floor(a.r() * tasks.length)];
-      return;
+function pickJob(v) {
+  const mine = buildings.filter(b => b.owner === v.owner && get(b.banner.x, b.banner.y, b.banner.z) === TYPES[b.type].wool);
+  const taken = new Set(villagers.filter(o => o !== v && o.spot).map(o => o.spot.x + ',' + o.spot.z));
+  const order = mine.filter(b => b !== v.last).sort(() => v.r() - .5);
+  for (const b of order) for (const [k, s] of b.spots.entries()) {
+    if (taken.has(s.x + ',' + s.z)) continue;
+    const p = findPath(v.tx, v.tz, s.x, s.z);
+    if (!p) continue;
+    const tasks = TYPES[b.type].tasks;
+    v.target = b; v.spot = s; v.spotIdx = k; v.path = p; v.state = 'walking'; v.task = tasks[Math.floor(v.r() * tasks.length)];
+    return;
+  }
+  // nowhere to go: wander a step or two
+  const steps = FRONT.map(([dx, dz]) => ({ x: v.tx + dx, z: v.tz + dz }))
+    .filter(n => n.x >= 0 && n.z >= 0 && n.x < W && n.z < D && walk[n.x + W * n.z] && Math.abs(surf[n.x + W * n.z] - surf[v.tx + W * v.tz]) <= 1);
+  if (steps.length) v.path = [steps[Math.floor(v.r() * steps.length)]];
+  v.state = 'idle'; v.target = null; v.task = null; v.timer = 2;
+}
+
+function resetVillagerPaths() {
+  for (const v of villagers) {
+    if (!walk[v.tx + W * v.tz]) { const [x, z] = nearestWalkable(v.tx, v.tz); v.tx = x; v.tz = z; v.x = x + .5; v.z = z + .5; }
+    if (v.state === 'walking') { v.path = []; v.state = 'idle'; v.timer = .2; v.spot = null; }
+    if (v.state === 'working' && v.target && get(v.target.banner.x, v.target.banner.y, v.target.banner.z) !== TYPES[v.target.type].wool) {
+      v.state = 'idle'; v.timer = .5; v.spot = null; v.task = null;
     }
   }
-  a.timer = 1;
 }
 
-const logEl = document.getElementById('log'); const entries = [];
-function log(a, text) {
-  if (!a.d.owner) return;
-  entries.unshift({ t: new Date(), name: a.name, text, where: TYPES[a.target.type].name });
-  if (entries.length > 30) entries.pop();
+const logEl = document.getElementById('log'); const logEntries = [];
+function log(v, html) {
+  if (v.owner !== 'me') return;
+  logEntries.unshift({ v, html, where: TYPES[v.target.type].name });
+  if (logEntries.length > 8) logEntries.pop();
   renderLog();
 }
 function renderLog() {
-  logEl.innerHTML = entries.map(e => {
-    const time = e.t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    return `<li>${time} · <b>${e.name}</b> ${visitor ? 'was active at ' + e.where : e.text}</li>`;
-  }).join('') || '<li>Agents are heading to work…</li>';
+  logEl.innerHTML = logEntries.map(e => `<div><b>${e.v.name}</b> ${visitor ? 'was busy at the ' + e.where : e.html}</div>`).join('') || '<div>Villagers are heading to work…</div>';
 }
 
-function updateAgent(a, dt, now) {
-  if (a.path.length) {
-    const n = a.path[0], dx = n.x - a.pos.x, dz = n.z - a.pos.z, dist = Math.hypot(dx, dz), step = a.speed * dt;
-    if (dist <= step) { a.pos = { x: n.x, z: n.z }; a.path.shift(); }
-    else { a.pos.x += dx / dist * step; a.pos.z += dz / dist * step; }
-    if (!a.path.length && a.state === 'walking') {
-      a.state = 'working'; a.timer = 6 + a.r() * 8; a.target.busy++;
-      log(a, `started <i>${a.task}</i> at ${TYPES[a.target.type].name}`);
+const SPEED = 2.3;
+function updateVillager(v, dt, t) {
+  let moving = false;
+  if (v.path.length) {
+    const n = v.path[0], tx = n.x + .5, tz = n.z + .5, dx = tx - v.x, dz = tz - v.z, d = Math.hypot(dx, dz), step = SPEED * dt;
+    if (d <= step) { v.x = tx; v.z = tz; v.tx = n.x; v.tz = n.z; v.path.shift(); }
+    else { v.x += dx / d * step; v.z += dz / d * step; v.g.rotation.y = Math.atan2(dx, dz); }
+    moving = true;
+    if (!v.path.length && v.state === 'walking') {
+      v.state = 'working'; v.timer = 9 + v.r() * 9;
+      v.g.rotation.y = Math.atan2(v.target.door.x + .5 - v.x, v.target.door.z + .5 - v.z);
+      log(v, `started <i>${v.task}</i> at the ${TYPES[v.target.type].name}`);
     }
   } else {
-    a.timer -= dt;
-    if (a.state === 'working' && a.timer <= 0) {
-      log(a, `finished <i>${a.task}</i>`);
-      a.target.busy--; a.last = a.target; a.state = 'idle'; a.spot = null; a.task = null; a.timer = 0.6 + a.r() * 1.5;
-    } else if (a.state === 'idle' && a.timer <= 0) pickJob(a);
+    v.timer -= dt;
+    if (v.state === 'working' && v.timer <= 0) {
+      log(v, `finished <i>${v.task}</i>`);
+      v.last = v.target; v.state = 'idle'; v.task = null; v.spot = null; v.timer = 1 + v.r() * 2;
+    } else if (v.state === 'idle' && v.timer <= 0) pickJob(v);
   }
-  // lane offset keeps walkers from overlapping; bob while walking
-  const walking = a.path.length > 0;
-  const onZ = a.path.length && Math.abs(a.path[0].z - a.pos.z) < 1e-3;
-  const lx = walking && !onZ ? a.lane : 0, lz = walking && onZ ? a.lane : 0;
-  a.mesh.position.set(a.d.offset + a.pos.x + lx, 0.6 + (walking ? Math.abs(Math.sin(now * 0.008 + a.phase)) * 0.12 : 0), a.pos.z + lz);
-  a.halo.material.opacity = a.state === 'working' ? 0.35 + Math.sin(now * 0.005 + a.phase) * 0.2 : 0.25;
+  const ty = surf[v.tx + W * v.tz];
+  v.y += (ty - v.y) * Math.min(1, dt * 10);
+  v.g.position.set(v.x, v.y, v.z);
+  const sw = moving ? Math.sin(t * 9 + v.phase) * .6 : 0;
+  v.legs[0].rotation.x = sw; v.legs[1].rotation.x = -sw;
+  v.armPivot.rotation.x = v.state === 'working' && !moving ? -.5 + Math.sin(t * 7 + v.phase) * .5 : 0;
 }
 
-function updateLabel(a, now) {
-  const dist = camera.position.distanceTo(a.mesh.position);
-  const hidden = !a.d.owner || visitor;
-  let html = '', cls = 'tag';
-  if (a.state === 'working') {
-    if (hidden) { html = '•'.repeat(1 + Math.floor(now / 450 + a.phase) % 3); cls += ' private'; }
-    else html = `<b>${a.name}</b> · ${a.task}`;
-  } else if (a.state === 'walking' && !hidden) { html = `${a.name} → ${TYPES[a.target.type].name}`; cls += ' walk'; }
-  if (a._html !== html) { a.el.innerHTML = html; a._html = html; }
-  if (a._cls !== cls) { a.el.className = cls; a._cls = cls; }
-  const c = a.target ? TYPES[a.target.type].css : '#fff';
-  if (a._c !== c) { a.el.style.borderColor = c; a._c = c; }
-  a.el.style.opacity = html && dist < (hidden ? 60 : 55) ? 1 : 0;
+function updateLabel(v, t, camPos) {
+  const hidden = v.owner !== 'me' || visitor;
+  let text = '', cls = 'tag';
+  if (v.state === 'working') {
+    if (hidden) { text = '•'.repeat(1 + (Math.floor(t * 2.2 + v.phase) % 3)); cls += ' priv'; }
+    else text = `${v.name}: ${v.task}`;
+  } else if (v.state === 'walking' && !hidden) { text = `${v.name} → ${TYPES[v.target.type].name}`; cls += ' walk'; }
+  else if (!hidden) text = v.name;
+  // neighbours at one workplace stand side by side, so stagger their labels
+  v.label.position.y = 2.15 + (v.state === 'working' ? (v.spotIdx || 0) * .42 : 0);
+  const far = camPos.distanceTo(v.g.position) > 34;
+  if (far) text = '';
+  if (v._t !== text) { v.el.textContent = text; v._t = text; v.el.style.display = text ? '' : 'none'; }
+  if (v._c !== cls) { v.el.className = cls; v._c = cls; }
 }
 
-// ---------- post-processing ----------
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.75, 0.5, 0.32);
-composer.addPass(bloom);
-composer.addPass(new OutputPass());
+// town signs
+function sign(text, x, y, z) { const el = document.createElement('div'); el.className = 'tag sign'; el.textContent = text; const o = new CSS2DObject(el); o.position.set(x, y, z); scene.add(o); }
+
+// ================= player =================
+const SPAWN = new THREE.Vector3(30.5, 6, 33.5);
+const player = { pos: SPAWN.clone(), vel: new THREE.Vector3(), yaw: 0, pitch: -.12, onGround: false, fly: false };
+const R = .3, PH = 1.75, EYE = 1.6;
+function collides(p) {
+  for (let x = Math.floor(p.x - R); x <= Math.floor(p.x + R); x++)
+    for (let y = Math.floor(p.y); y <= Math.floor(p.y + PH - .01); y++)
+      for (let z = Math.floor(p.z - R); z <= Math.floor(p.z + R); z++) {
+        if (x < 0 || z < 0 || x >= W || z >= D || y < 0) return true;
+        if (y < H && solid(world[idx(x, y, z)])) return true;
+      }
+  return false;
+}
+function respawn() {
+  player.pos.copy(SPAWN); player.vel.set(0, 0, 0);
+  while (collides(player.pos) && player.pos.y < H) player.pos.y += 1;
+}
+function inWater(p) { return get(Math.floor(p.x), Math.floor(p.y + .4), Math.floor(p.z)) === B.WATER; }
+
+const keys = new Set();
+addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
+  keys.add(e.code);
+  if (e.code === 'KeyF') { player.fly = !player.fly; player.vel.y = 0; toast(player.fly ? 'Flying: Space up, Shift down' : 'Walking'); }
+  if (e.code === 'KeyV') { visitor = !visitor; renderLog(); toast(visitor ? 'Visitor view: this is what neighbours see of your town' : 'Owner view'); }
+  if (/^Digit[0-9]$/.test(e.code)) { const n = +e.code.slice(5); selectSlot(n === 0 ? 9 : n - 1); }
+});
+addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());
+
+function updatePlayer(dt) {
+  const f = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+  const r = new THREE.Vector3(-f.z, 0, f.x);
+  const want = new THREE.Vector3();
+  if (keys.has('KeyW') || keys.has('ArrowUp')) want.add(f);
+  if (keys.has('KeyS') || keys.has('ArrowDown')) want.sub(f);
+  if (keys.has('KeyD') || keys.has('ArrowRight')) want.add(r);
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) want.sub(r);
+  const water = inWater(player.pos);
+  const speed = player.fly ? 10 : water ? 2.6 : (keys.has('ControlLeft') ? 6.2 : 4.4);
+  if (want.lengthSq()) want.normalize().multiplyScalar(speed);
+  const k = Math.min(1, dt * (player.onGround || player.fly ? 14 : 4));
+  player.vel.x += (want.x - player.vel.x) * k; player.vel.z += (want.z - player.vel.z) * k;
+  if (player.fly) {
+    const vy = (keys.has('Space') ? 1 : 0) - (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 1 : 0);
+    player.vel.y += (vy * 8 - player.vel.y) * Math.min(1, dt * 10);
+  } else if (water) {
+    player.vel.y = Math.max(player.vel.y - 9 * dt, -2.5);
+    if (keys.has('Space')) player.vel.y = 3;
+  } else {
+    player.vel.y -= 26 * dt;
+    if (keys.has('Space') && player.onGround) player.vel.y = 8.2;
+  }
+  player.onGround = false;
+  for (const axis of ['x', 'y', 'z']) {
+    const before = player.pos[axis];
+    player.pos[axis] += player.vel[axis] * dt;
+    if (collides(player.pos)) {
+      player.pos[axis] = before;
+      if (axis === 'y') { if (player.vel.y < 0) player.onGround = true; }
+      player.vel[axis] = 0;
+    }
+  }
+  if (player.pos.y < -10) respawn();
+  camera.position.set(player.pos.x, player.pos.y + EYE, player.pos.z);
+  camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+}
+
+// ================= looking, breaking, placing =================
+function raycastBlock(maxD = 7) {
+  const o = camera.position, d = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  let x = Math.floor(o.x), y = Math.floor(o.y), z = Math.floor(o.z);
+  const sx = Math.sign(d.x), sy = Math.sign(d.y), sz = Math.sign(d.z);
+  const tdx = Math.abs(1 / d.x), tdy = Math.abs(1 / d.y), tdz = Math.abs(1 / d.z);
+  let tmx = sx > 0 ? (x + 1 - o.x) * tdx : (o.x - x) * tdx, tmy = sy > 0 ? (y + 1 - o.y) * tdy : (o.y - y) * tdy, tmz = sz > 0 ? (z + 1 - o.z) * tdz : (o.z - z) * tdz;
+  let prev = null, t = 0;
+  while (t <= maxD) {
+    const id = get(x, y, z);
+    if (id && id !== B.WATER) return { x, y, z, id, prev, dist: t };
+    prev = { x, y, z };
+    if (tmx < tmy && tmx < tmz) { x += sx; t = tmx; tmx += tdx; } else if (tmy < tmz) { y += sy; t = tmy; tmy += tdy; } else { z += sz; t = tmz; tmz += tdz; }
+  }
+  return null;
+}
+const highlight = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.004, 1.004, 1.004)), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: .55 }));
+scene.add(highlight);
+
+const raycaster = new THREE.Raycaster(); raycaster.far = 14;
+function lookedVillager() {
+  raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+  const hits = raycaster.intersectObjects(villagers.map(v => v.g), true);
+  for (const h of hits) { let o = h.object; while (o && !o.userData.v) o = o.parent; if (o) return { v: o.userData.v, dist: h.distance }; }
+  return null;
+}
+
+const SLOTS = [
+  { block: B.GRASS }, { block: B.STONE }, { block: B.PLANKS }, { block: B.BRICK }, { block: B.GLASS }, { block: B.LOG },
+  { kit: 'library' }, { kit: 'forge' }, { kit: 'market' }, { kit: 'post' },
+];
+let slot = 2;
+
+function ownTerritory(x) { return x < TERRITORY_X; }
+function act(button) {
+  if (!started) return;
+  const hit = raycastBlock();
+  const vl = lookedVillager();
+  if (vl && (!hit || vl.dist < hit.dist)) return;
+  if (!hit) return;
+  if (button === 0) {
+    if (!ownTerritory(hit.x)) return toast("That's Kai's town. You can look, but you can't build there.");
+    if (hit.y === 0) return;
+    setBlock(hit.x, hit.y, hit.z, B.AIR);
+    const b = buildings.find(b => b.banner.x === hit.x && b.banner.y === hit.y && b.banner.z === hit.z);
+    if (b) { buildings = buildings.filter(o => o !== b); toast(`The ${TYPES[b.type].name} is closed. Its villagers will find other work.`); }
+  } else {
+    const s = SLOTS[slot];
+    if (!hit.prev) return;
+    const p = hit.prev;
+    if (!ownTerritory(p.x)) return toast("That's Kai's town. You can look, but you can't build there.");
+    if (s.block) {
+      const pl = player.pos;
+      const overlapsPlayer = p.x + 1 > pl.x - R && p.x < pl.x + R && p.z + 1 > pl.z - R && p.z < pl.z + R && p.y + 1 > pl.y && p.y < pl.y + PH;
+      if (overlapsPlayer) return;
+      setBlock(p.x, p.y, p.z, s.block);
+    } else {
+      // face the new building's door towards the player
+      const dx = player.pos.x - (p.x + .5), dz = player.pos.z - (p.z + .5);
+      const facing = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 2 : 3) : (dz > 0 ? 0 : 1);
+      const x0 = p.x - 2, z0 = p.z - 2;
+      if (x0 < 1 || z0 < 1 || x0 + 5 >= TERRITORY_X || z0 + 5 >= D - 1) return toast('Not enough room here. Try a flatter, open spot.');
+      const before = new Uint8Array(world);
+      const b = stampKit(x0, z0, s.kit, facing, 'me');
+      if (!b) return toast('Too high to build here.');
+      // don't trap the player inside the new walls
+      if (collides(player.pos)) { world.set(before); buildings.pop(); return toast('Step back a little to build here.'); }
+      for (let i = 0; i < world.length; i++) if (world[i] !== before[i]) changes.set(i, world[i]);
+      toast(`New ${TYPES[s.kit].name}! Villagers will start working here.`);
+    }
+  }
+  rebuild(); resetVillagerPaths(); scheduleSave();
+}
+
+// ================= input: pointer lock with a drag-to-look fallback =================
+let started = false, locked = false, dragMode = false, drag = null;
+const startEl = document.getElementById('start');
+function tryLock() {
+  if (dragMode) return;
+  try {
+    const p = canvas.requestPointerLock();
+    if (p && p.catch) p.catch(() => enableDrag());
+  } catch (e) { enableDrag(); }
+}
+function enableDrag() { if (!dragMode) { dragMode = true; toast('Drag to look around, click to break, right click to place'); } }
+document.addEventListener('pointerlockchange', () => {
+  locked = document.pointerLockElement === canvas;
+  if (!locked && !dragMode && started) { startEl.style.display = 'grid'; document.getElementById('go').textContent = 'Click to resume'; }
+});
+document.addEventListener('pointerlockerror', enableDrag);
+startEl.addEventListener('click', () => { started = true; startEl.style.display = 'none'; tryLock(); });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('mousedown', e => {
+  if (!started) return;
+  if (locked) { act(e.button === 2 ? 2 : 0); return; }
+  if (dragMode) drag = { x: e.clientX, y: e.clientY, moved: 0, button: e.button };
+  else tryLock();
+});
+addEventListener('mousemove', e => {
+  if (locked) look(e.movementX, e.movementY);
+  else if (drag) { look((e.movementX || 0) * 1.2, (e.movementY || 0) * 1.2); drag.moved += Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0); }
+});
+addEventListener('mouseup', () => { if (drag && drag.moved < 6) act(drag.button === 2 ? 2 : 0); drag = null; });
+function look(dx, dy) { player.yaw -= dx * .0024; player.pitch = Math.max(-1.55, Math.min(1.55, player.pitch - dy * .0024)); }
+addEventListener('wheel', e => { if (started) selectSlot((slot + (e.deltaY > 0 ? 1 : SLOTS.length - 1)) % SLOTS.length); }, { passive: true });
+
+// touch: drag to look, tap to break (so the page is at least explorable on phones)
+let touch = null;
+canvas.addEventListener('touchstart', e => { const t = e.touches[0]; touch = { x: t.clientX, y: t.clientY, moved: 0 }; }, { passive: true });
+canvas.addEventListener('touchmove', e => { const t = e.touches[0]; if (!touch) return; const dx = t.clientX - touch.x, dy = t.clientY - touch.y; look(dx * 2, dy * 2); touch.moved += Math.abs(dx) + Math.abs(dy); touch.x = t.clientX; touch.y = t.clientY; }, { passive: true });
+if (matchMedia('(pointer: coarse)').matches) document.getElementById('mobile').style.display = 'block';
+
+// ================= HUD =================
+const hotbar = document.getElementById('hotbar'), itemName = document.getElementById('itemname');
+SLOTS.forEach((s, i) => {
+  const el = document.createElement('div'); el.className = 'slot';
+  if (s.block) el.style.backgroundImage = `url(${ICON_TEX[s.block].userData.canvas.toDataURL()})`;
+  else { const t = TYPES[s.kit]; el.style.background = t.css; el.innerHTML = `<span class="kit">${t.name.split(' ')[0]}</span>`; }
+  el.innerHTML += `<i>${(i + 1) % 10}</i>`;
+  el.addEventListener('click', () => selectSlot(i));
+  hotbar.appendChild(el);
+});
+let nameTimer = 0;
+function selectSlot(i) {
+  slot = i; [...hotbar.children].forEach((c, k) => c.classList.toggle('sel', k === i));
+  const s = SLOTS[i]; itemName.textContent = s.block ? BLOCK_NAMES[s.block] : `${TYPES[s.kit].name} (building kit)`;
+  itemName.style.opacity = 1; clearTimeout(nameTimer); nameTimer = setTimeout(() => itemName.style.opacity = 0, 1600);
+}
+selectSlot(slot);
+
+const toastEl = document.getElementById('toast'); let toastTimer = 0;
+function toast(msg) { toastEl.textContent = msg; toastEl.style.opacity = 1; clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.style.opacity = 0, 2400); }
+
+const statusEl = document.getElementById('status'), cardEl = document.getElementById('card');
+function updateHud() {
+  const inKai = player.pos.x >= 68;
+  const who = inKai ? 'kai' : 'me';
+  const vs = villagers.filter(v => v.owner === who), busy = vs.filter(v => v.state === 'working').length;
+  const bs = buildings.filter(b => b.owner === who).length;
+  statusEl.innerHTML = inKai
+    ? `<b>KAI'S TOWN</b> <span>· visiting · ${bs} workplaces · ${busy}/${vs.length} villagers busy · tasks are private</span>`
+    : `<b>YOUR TOWN</b> <span>· ${bs} workplaces · ${busy}/${vs.length} villagers busy${visitor ? ' · visitor view' : ''}</span>`;
+  const lv = lookedVillager();
+  if (lv && lv.dist < 12) {
+    const v = lv.v, priv = v.owner !== 'me' || visitor;
+    let line;
+    if (v.state === 'working') line = priv ? `<span class="priv">Busy at the ${TYPES[v.target.type].name} · task hidden</span>` : `${v.task}<br><span>at the ${TYPES[v.target.type].name}</span>`;
+    else if (v.state === 'walking') line = priv ? 'Walking' : `Heading to the ${TYPES[v.target.type].name}`;
+    else line = 'Looking for work';
+    cardEl.innerHTML = `<b>${v.owner === 'me' ? v.name : v.name + " · Kai's villager"}</b><br>${line}`;
+    cardEl.style.display = 'block';
+  } else cardEl.style.display = 'none';
+}
+
+// ================= boot =================
+generate();
+loadSave();
+rebuild();
+NAMES_ME.forEach((n, i) => makeVillager(n, 'me', i, 24 + (i % 4) * 2, 30 + Math.floor(i / 4) * 2));
+NAMES_KAI.forEach((n, i) => makeVillager(n, 'kai', i, 84 + (i % 3) * 2, 30 + Math.floor(i / 3) * 2));
+sign('YOUR TOWN', 30, 12, 31.5);
+sign("KAI'S TOWN · PRIVATE", 90, 12, 31.5);
+renderLog();
+respawn();
 
 function resize() {
-  const w = window.innerWidth, h = window.innerHeight;
-  renderer.setSize(w, h, false); composer.setSize(w, h); labelRenderer.setSize(w, h);
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false); labelRenderer.setSize(w, h);
   camera.aspect = w / h; camera.updateProjectionMatrix();
 }
-window.addEventListener('resize', resize); resize();
+addEventListener('resize', resize); resize();
 
-// ---------- HUD ----------
-const legend = document.getElementById('legend');
-legend.innerHTML = Object.values(TYPES).map(t => `<span><i class="sw" style="background:${t.css};box-shadow:0 0 8px ${t.css}"></i>${t.name}</span>`).join('');
-
-let fly = null;
-const views = {
-  mine: { pos: [6, 3.2, 42], target: [6, 5, 0] },
-  neon: { pos: [-64, 16, 44], target: [-64, 3, 0] },
-  harbor: { pos: [64, 16, 44], target: [64, 3, 0] },
-  overview: { pos: [0, 70, 95], target: [0, 0, 0] },
-};
-const btnWrap = document.getElementById('districts');
-[...DISTRICTS.map(d => ({ id: d.id, label: d.owner ? d.name : 'Visit ' + d.name })), { id: 'overview', label: 'Whole city' }].forEach(v => {
-  const b = document.createElement('button'); b.type = 'button'; b.textContent = v.label; b.dataset.view = v.id;
-  b.addEventListener('click', () => goTo(v.id)); btnWrap.appendChild(b);
-});
-function goTo(id) {
-  const v = views[id];
-  fly = { t: 0, fromP: camera.position.clone(), fromT: controls.target.clone(), toP: new THREE.Vector3(...v.pos), toT: new THREE.Vector3(...v.target) };
-  btnWrap.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === id)));
-}
-btnWrap.querySelector('[data-view="mine"]').setAttribute('aria-pressed', 'true');
-
-document.getElementById('visitor').addEventListener('change', e => { visitor = e.target.checked; renderLog(); });
-
-// ---------- loop ----------
-const clock = new THREE.Clock();
+const clock = new THREE.Clock(); let hudTimer = 0;
 function frame() {
-  const dt = Math.min(clock.getDelta(), 0.05), now = performance.now();
-  agents.forEach(a => updateAgent(a, dt, now));
-  for (const blds of buildingsByDistrict.values()) for (const b of blds) {
-    b.doorMesh.material.opacity = b.busy > 0 ? 0.65 + Math.sin(now * 0.006) * 0.2 : 0.25;
-  }
-  if (fly) {
-    fly.t = Math.min(1, fly.t + dt / 1.6);
-    const e = fly.t < 0.5 ? 2 * fly.t * fly.t : 1 - Math.pow(-2 * fly.t + 2, 2) / 2;
-    camera.position.lerpVectors(fly.fromP, fly.toP, e); controls.target.lerpVectors(fly.fromT, fly.toT, e);
-    if (fly.t >= 1) fly = null;
-  }
-  controls.update();
-  agents.forEach(a => updateLabel(a, now));
-  composer.render();
+  const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime;
+  if (started) updatePlayer(dt); else { player.yaw += dt * .05; camera.position.set(player.pos.x, player.pos.y + EYE + 4, player.pos.z); camera.rotation.set(-.25, player.yaw, 0, 'YXZ'); }
+  for (const v of villagers) updateVillager(v, dt, t);
+  const hit = started ? raycastBlock() : null;
+  highlight.visible = !!hit; if (hit) highlight.position.set(hit.x + .5, hit.y + .5, hit.z + .5);
+  clouds.children.forEach(c => { c.position.x += dt * 1.2; if (c.position.x > 170) c.position.x = -60; });
+  for (const v of villagers) updateLabel(v, t, camera.position);
+  hudTimer -= dt; if (hudTimer <= 0) { updateHud(); hudTimer = .15; }
+  renderer.render(scene, camera);
   labelRenderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 frame();
+
+// test hook: lets automated checks start the game without pointer lock
+window.__realms = { raycastBlock, lookedVillager, simulate(sec) { for (let t = 0; t < sec; t += .05) { for (const v of villagers) updateVillager(v, .05, t); updatePlayer(.05); } }, collides, get, surf: (x, z) => surf[x + W * z], start() { started = true; startEl.style.display = 'none'; dragMode = true; }, player, act, selectSlot, villagers, buildings: () => buildings };
 </script>
 </body>
 </html>

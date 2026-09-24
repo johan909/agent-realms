@@ -1,21 +1,30 @@
 # Agent Realms
 
-A neon 3D city where AI agents walk between buildings doing tasks.
-Each person will own a town; visitors can see buildings and busy villagers,
-but never what the villagers are working on.
+A Minecraft-style block world where AI agents live as villagers in the town you build.
+Everyone owns a town. You can walk into a neighbour's town and watch, but you only
+see *that* their villagers are busy, never *what* they are working on.
 
-## Milestone 1 (this version)
+## Play
 
-- Single static page, no build step: open `index.html` in a browser (Three.js loads from a CDN).
-- Your district: a 3x3 grid of neon buildings (Library, Forge, Post, Market, HQ) with agents
-  walking the streets to work, showing their current task.
-- Two neighbour districts: their agents show only that they are busy, never the task.
-- **Visitor view** previews your own district the way a neighbour sees it.
-- Buttons fly the camera between districts; drag to orbit, scroll to zoom.
+Open `index.html` in a desktop browser (Three.js loads from a CDN, no build step).
+
+- **WASD** move, **mouse** look, **Space** jump, **F** fly (Space up, Shift down)
+- **Left click** break a block, **right click** place one
+- **1-6** blocks (grass, stone, planks, bricks, glass, log), **7-0** building kits
+  (Library, Forge, Market, Post Office). A kit builds a small house facing you.
+- **V** visitor view: see your own town the way a neighbour does
+- Look at a villager to see what it is doing
+
+Villagers walk to the workplaces in their own town and work on tasks tied to the
+building (the Forge is for code, the Library for research, and so on). Build a new
+workplace and they start using it. Break the coloured block above a door and that
+workplace closes. Your changes are saved in your browser.
+
+Across the river is Kai's town: you can visit, but you can't build there, and its
+villagers' tasks stay hidden.
 
 ## Next
 
-- Real agent activity feeding the villagers.
-- Placing and upgrading your own buildings on the grid.
-- Accounts and a shared world of everyone's districts.
-- A low-graphics mode for weaker devices.
+- Real agent activity feeding the villagers
+- Accounts, so every visitor gets their own town in a shared world
+- More building kits and upgrades
